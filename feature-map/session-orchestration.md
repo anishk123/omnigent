@@ -1,8 +1,8 @@
 # Session orchestration
 
 An agent in a session that is private or shared read-only can send work to
-another session owned by the same user, then read its status/history. It can also create private top-level
-workers on its host or a new managed sandbox. This is enabled by default, with
+another session owned by the same user, then read its status/history. It can also create private sibling
+workers grouped in the left sidebar on its host or a new managed sandbox. This is enabled by default, with
 `-session_orchestration` in `OMNIGENT_FEATURES` as a server kill switch.
 
 ## Sub-features
@@ -23,7 +23,8 @@ workers on its host or a new managed sandbox. This is enabled by default, with
   trigger templates (`/v1/info` reports `features.session_orchestration`). Restart every server replica to
   apply it. Already accepted tasks may finish; ordinary reads and child work remain.
 - `create`: `sys_session_create` retains child creation by default; `same_host`
-  and `managed` placements create independent, initially private sessions.
+  and `managed` placements create independent, initially private sibling sessions.
+  Siblings share one sidebar family and do not appear as child agents.
   Managed creation uses the server's configured default sandbox provider.
 - `sharing`: sharing the sender with edit (or higher) access, including public
   edit, blocks subsequent sends and independent creates. Read-only grants,
@@ -60,7 +61,7 @@ workers on its host or a new managed sandbox. This is enabled by default, with
 - Open an independent worker in Chat or Terminal and follow its "Created by"
   link. On mobile web, the same link is in the header. Ask the manager to list
   its sessions and match `created_by_session_id` to its own session ID.
-- On Automations, pick a *Jira tickets*, *Slack messages*, or *GitHub issues*
+- On Automations, pick a _Jira tickets_, _Slack messages_, or _GitHub issues_
   card from suggestions on **Your automations** or the **Templates** tab at
   `/tasks?view=templates`. Suggestions appear below saved automations or the
   empty-state message with All selected and search cleared. The old
@@ -87,7 +88,7 @@ contract is covered by `tests/server/integration/test_session_orchestration.py`;
 the header states are covered by `web/src/shell/ChatHeader.test.tsx`.
 
 - Own environment: `uv run --no-sync pytest
-  tests/e2e/test_private_session_orchestration.py --reruns 0` uses real local
+tests/e2e/test_private_session_orchestration.py --reruns 0` uses real local
   host, server, SDK and Codex processes with a scripted model. It submits chat
   requests over HTTP and checks send, history reads, same-host creation, and
   sharing refusal. It also checks that unconfigured managed creation gives a clear
@@ -98,7 +99,7 @@ the header states are covered by `web/src/shell/ChatHeader.test.tsx`.
   It also fires an owner-created schedule through the real server/host and checks
   that the resulting worker cannot message a peer or create an independent worker.
 - Component integration: `uv run --no-sync pytest
-  tests/server/integration/test_session_orchestration.py --reruns 0` checks the
+tests/server/integration/test_session_orchestration.py --reruns 0` checks the
   authenticated routes, ownership stores, refusal matrix and managed request /
   durable startup contract with simulated provisioning. It covers default provider
   selection for OSS and embedding configurations. Runner tests cover an absent
