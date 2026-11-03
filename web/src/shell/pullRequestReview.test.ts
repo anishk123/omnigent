@@ -74,6 +74,8 @@ describe("pullRequestRepoUrl", () => {
       "https://dev.azure.com/acme/pullrequest/_git/pullrequest",
     ],
     ["github", "https://github.com/acme/app/issues/7", null],
+    ["github", "https://github.com/acme/pull/issues/7", null],
+    ["github", "https://github.com/acme/app/pull/7/files", "https://github.com/acme/app"],
     ["unknown", "https://github.com/acme/app/pull/7", null],
     [null, "https://github.com/acme/app/pull/7", null],
   ])("derives the repository for %s from %s", (provider, prUrl, expected) => {
