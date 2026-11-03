@@ -339,4 +339,34 @@ describe("PullRequestChangesTab viewed files", () => {
     expect(store.result.current.hideViewed).toBe(false);
     expect(isListed("a.ts")).toBe(true);
   });
+
+  it("keeps a matching path filter when navigating to a viewed file", () => {
+    const store = renderHook(() => useChangesViewState("viewed-thread-filter", PR_URL));
+    const thread = { id: "t1", path: "a.ts", resolved: false } as ReviewThread;
+    render(viewedTab({ conversationId: "viewed-thread-filter", threads: [thread] }));
+    fireEvent.click(viewedBox("a.ts"));
+    act(() => store.result.current.setPathFilter("a.ts"));
+    act(() => store.result.current.setHideViewed(true));
+    expect(isListed("a.ts")).toBe(false);
+
+    fireEvent.click(screen.getByRole("button", { name: "Next unresolved conversation" }));
+
+    expect(store.result.current.pathFilter).toBe("a.ts");
+    expect(store.result.current.hideViewed).toBe(false);
+    expect(isListed("a.ts")).toBe(true);
+  });
+
+  it("expands files collapsed by old marks on a new head but keeps manual collapses", () => {
+    const { rerender } = render(viewedTab({ conversationId: "viewed-collapse", head: "head1" }));
+    fireEvent.click(viewedBox("a.ts"));
+    fireEvent.click(fileSection("b.ts").querySelector("button")!);
+    expect(isCollapsed("a.ts")).toBe(true);
+    expect(isCollapsed("b.ts")).toBe(true);
+
+    rerender(viewedTab({ conversationId: "viewed-collapse", head: "head2" }));
+
+    expect(viewedBox("a.ts")).not.toBeChecked();
+    expect(isCollapsed("a.ts")).toBe(false);
+    expect(isCollapsed("b.ts")).toBe(true);
+  });
 });

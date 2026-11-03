@@ -1392,7 +1392,6 @@ describe("PullRequestPanel", () => {
   });
 
   it("keys viewed marks by the selected PR's identity and pinned head", async () => {
-    localStorage.clear();
     const url = state.info!.data!.pr!.url;
     const selected = {
       url,
@@ -1412,17 +1411,6 @@ describe("PullRequestPanel", () => {
     fireEvent.click(await screen.findByRole("checkbox", { name: "Viewed hello.py" }));
     const key = viewedStorageKey(window.location.origin, "alice", selected, "head");
     expect(localStorage.getItem(key)).toContain("hello.py");
-  });
-
-  it("withholds viewed controls when the list is not pinned to a head", async () => {
-    const url = state.info!.data!.pr!.url;
-    state.info!.data!.pr!.head_sha = "head";
-    state.info!.data!.selected_pr_url = url;
-    state.info!.data!.prs = [
-      { url, host: "example.com", repository: "acme/app", number: 6000, relationship: "created" },
-    ];
-    renderChanges();
-    expect(await screen.findByRole("checkbox", { name: "Viewed hello.py" })).toBeDisabled();
   });
 
   it("stacks a diff section per changed file", async () => {

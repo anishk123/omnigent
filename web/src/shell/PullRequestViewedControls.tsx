@@ -38,7 +38,10 @@ export function PullRequestViewedToggle({
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <span className="flex">{toggle}</span>
+        {/* Focusable so keyboard users can reach the tooltip explaining the disabled box. */}
+        <span className="flex" tabIndex={0}>
+          {toggle}
+        </span>
       </TooltipTrigger>
       <TooltipContent>Viewed state unavailable</TooltipContent>
     </Tooltip>

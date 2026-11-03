@@ -436,11 +436,22 @@ export function PullRequestChangesTab({
     (path: string) => collapsedPaths.has(path) && !revealedPaths.has(path),
     [collapsedPaths, revealedPaths],
   );
-  // Viewed files start collapsed once per rendered head; later expansions are kept.
+  // Viewed files start collapsed once per rendered head. Paths collapsed by marks on the
+  // previous head expand again on a new head, since their marks were reset; manual collapses stay.
+  const markCollapsedRef = useRef<ReadonlySet<string>>(new Set());
   const [seededHead, setSeededHead] = useState<string | null>(null);
   if (viewedFiles.available && renderedHead !== seededHead) {
+    const previousMarkCollapsed = markCollapsedRef.current;
+    markCollapsedRef.current = new Set(viewedFiles.viewed);
     setSeededHead(renderedHead);
-    setCollapsedPaths((prev) => new Set([...prev, ...viewedFiles.viewed]));
+    setCollapsedPaths(
+      (prev) =>
+        new Set(
+          [...prev]
+            .filter((path) => !previousMarkCollapsed.has(path))
+            .concat([...viewedFiles.viewed]),
+        ),
+    );
   }
   // Marking a file collapses it; unmarking leaves its current state alone.
   const toggleViewed = useCallback(
@@ -448,6 +459,7 @@ export function PullRequestChangesTab({
       const markViewed = !viewedFiles.viewed.has(path);
       viewedFiles.toggle(path);
       if (!markViewed) return;
+      markCollapsedRef.current = new Set(markCollapsedRef.current).add(path);
       clearReveal(path);
       setCollapsedPaths((prev) => (prev.has(path) ? prev : new Set(prev).add(path)));
     },
