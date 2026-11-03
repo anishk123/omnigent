@@ -169,6 +169,7 @@ function SidebarNode({
         <span className="flex size-3.5 shrink-0 items-center justify-center" aria-hidden>
           {viewed && <CheckIcon className="size-3 text-muted-foreground" />}
         </span>
+        {viewed && <span className="sr-only">Viewed, </span>}
         <StatusIcon aria-hidden className={cn("size-3.5 shrink-0", meta.className)} />
         <span className={cn("min-w-0 truncate [direction:rtl]", viewed && "text-muted-foreground")}>
           <bdi>{node.name}</bdi>
@@ -393,12 +394,10 @@ export function PullRequestChangesTab({
   const mobile = useIsMobileViewport();
   const view = useChangesViewState(conversationId, data.selected_pr_url ?? pr.url);
   const { revealedPaths, reveal, clearReveal } = view;
-  // The head of the diff on screen. A polled head only counts once the list and diff agree on it.
-  const listHead = changes.data?.head_sha ?? pr.head_sha ?? null;
-  const renderedHead =
-    changes.data && prDiff.data && listHead === (prDiff.data.head_sha ?? pr.head_sha ?? null)
-      ? listHead
-      : null;
+  // The head the shown patch was fetched for. Viewed state needs both the list and the diff
+  // pinned to the same head; unpinned providers (GitLab, Azure) can't prove it, so marks are withheld.
+  const pinnedHead = changes.data?.head_sha ?? null;
+  const renderedHead = pinnedHead && prDiff.data?.head_sha === pinnedHead ? pinnedHead : null;
   const viewedFiles = useViewedFiles(identity, renderedHead);
 
   const themeType = useResolvedThemeMode();

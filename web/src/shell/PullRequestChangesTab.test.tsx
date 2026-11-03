@@ -103,6 +103,7 @@ function viewedTab({
   identity = IDENTITY,
   threads = [],
   diffHead = head,
+  listHead = head,
 }: {
   conversationId: string;
   head?: string;
@@ -112,6 +113,8 @@ function viewedTab({
   threads?: ReviewThread[];
   /** The head the loaded patch was fetched for, when it differs from the list's. */
   diffHead?: string;
+  /** The list's pinned head; null models a provider that doesn't pin revisions. */
+  listHead?: string | null;
 }) {
   const props = {
     conversationId,
@@ -125,7 +128,7 @@ function viewedTab({
     prUrl: PR_URL,
     canEdit: false,
     selected: true,
-    changes: { data: { available: true, data: files, has_more: hasMore, head_sha: head } },
+    changes: { data: { available: true, data: files, has_more: hasMore, head_sha: listHead } },
     prDiff: { data: { head_sha: diffHead, base_sha: "base" }, isLoading: false },
     reviews: {
       page: { data: threads, head_sha: head, base_sha: "base" },
@@ -179,6 +182,7 @@ describe("PullRequestChangesTab viewed files", () => {
 
     expect(viewedBox("a.ts")).toBeChecked();
     expect(isCollapsed("a.ts")).toBe(true);
+    expect(screen.getByText("Viewed,", { exact: true })).toBeInTheDocument();
     expect(screen.getByText("1 / 2 files viewed")).toBeInTheDocument();
     expect(screen.getByRole("progressbar", { name: "Files viewed" })).toHaveAttribute(
       "aria-valuenow",
@@ -246,6 +250,14 @@ describe("PullRequestChangesTab viewed files", () => {
     expect(screen.queryByText(/viewed marks were reset/)).toBeNull();
     rerender(viewedTab({ conversationId: "viewed-head", head: "head2" }));
     expect(screen.queryByText(/viewed marks were reset/)).toBeNull();
+  });
+
+  it("withholds viewed state when the list is not pinned to a head", () => {
+    // A provider that ignores revision pinning can serve a newer patch than the polled head.
+    render(viewedTab({ conversationId: "viewed-unpinned", listHead: null }));
+
+    expect(viewedBox("a.ts")).toBeDisabled();
+    expect(screen.queryByText(/files viewed/)).toBeNull();
   });
 
   it("waits for the list and the patch to agree on a head", () => {
