@@ -313,6 +313,14 @@ describe("PullRequestChangesTab", () => {
     expect(disabled).toHaveAttribute("data-disabled");
     expect(disabled).toHaveTextContent("Source repository unavailable");
     expect(disabled).not.toHaveAttribute("href");
+
+    // A deleted file still opens from the base repository at the base revision.
+    fireEvent.keyDown(screen.getByRole("menu"), { key: "Escape" });
+    openMenu("old.ts");
+    expect(screen.getByRole("menuitem", { name: "Open in GitHub" })).toHaveAttribute(
+      "href",
+      "https://github.com/acme/app/blob/base/old.ts",
+    );
   });
 
   it("puts every file action in the overflow menu on mobile", () => {
