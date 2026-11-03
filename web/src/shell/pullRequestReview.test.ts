@@ -75,6 +75,12 @@ describe("pullRequestRepoUrl", () => {
     ],
     ["github", "https://github.com/acme/app/issues/7", null],
     ["github", "https://github.com/acme/pull/issues/7", null],
+    ["github", "https://github.com/pull/123/pull/7", "https://github.com/pull/123"],
+    [
+      "azure_devops",
+      "https://dev.azure.com/pullrequest/2024/_git/app/pullrequest/9",
+      "https://dev.azure.com/pullrequest/2024/_git/app",
+    ],
     ["github", "https://github.com/acme/app/pull/7/files", "https://github.com/acme/app"],
     ["unknown", "https://github.com/acme/app/pull/7", null],
     [null, "https://github.com/acme/app/pull/7", null],
@@ -222,6 +228,19 @@ describe("pullRequestFileUrl", () => {
         status: "deleted",
       }),
     ).toBe("https://github.com/pull/app/blob/base1/old/gone.ts");
+  });
+
+  it("keeps a numeric repository path whole for a deleted file", () => {
+    expect(
+      pullRequestFileUrl({
+        provider: "github",
+        baseRepoUrl: pullRequestRepoUrl("github", "https://github.com/pull/123/pull/7"),
+        headSha: "head1",
+        baseSha: "base1",
+        path: "old/gone.ts",
+        status: "deleted",
+      }),
+    ).toBe("https://github.com/pull/123/blob/base1/old/gone.ts");
   });
 
   it.each([

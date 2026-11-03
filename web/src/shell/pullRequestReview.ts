@@ -41,7 +41,7 @@ export function pullRequestRepoUrl(provider: string | null, prUrl: string): stri
   // The marker must be followed by the PR number at the end, so a repository path
   // that contains the marker (e.g. `pull/issues/7`) doesn't match.
   const escaped = marker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const match = new RegExp(`^(https?://.+?)${escaped}\\d+(?:[/?#].*)?$`).exec(prUrl);
+  const match = new RegExp(`^(https?://.+)${escaped}\\d+(?:[/?#].*)?$`).exec(prUrl);
   return match ? match[1] : null;
 }
 
