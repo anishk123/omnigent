@@ -38,8 +38,10 @@ import {
   nullsToUndefined,
   PROJECT_LABEL_KEY,
   removeIdsFromPages,
+  unmarkRecentlyCreated,
 } from "@/lib/sessionListCache";
 import { isModalHostResolved, resolveModalHost } from "@/lib/sessionHost";
+import { sessionVisibility } from "@/lib/sessionVisibility";
 import { type SessionUpdatesFrame, sessionUpdatesSocket } from "@/lib/sessionUpdatesSocket";
 import { isTempConvId } from "@/lib/tempConversationId";
 
@@ -74,6 +76,20 @@ function applyItemsToCache(
       nullsToUndefined(isSessionArchiving(item.id) ? { ...item, archived: true } : item),
     );
   }
+  // The open session is always in the watch-set, so its row arrives with every
+  // snapshot whether or not the server lists it. Another user's open session
+  // (e.g. opened by a link shared only through a group) is never inserted: list
+  // membership is the server's call, re-read on an access_changed frame or when
+  // the session's permission changes.
+  const activeItem = activeId === undefined ? undefined : itemsById.get(activeId);
+  const skipInsert = (id: string) =>
+    isSessionDeleting(id) ||
+    (id === activeId &&
+      activeItem !== undefined &&
+      sessionVisibility(
+        { owner: activeItem.owner, permission_level: activeItem.permission_level ?? null },
+        viewerId ?? null,
+      ) === "shared");
   const foundAnywhere = new Set<string>();
   let needsRefetch = false;
   const entries = queryClient.getQueriesData<ConversationsInfiniteData>({
@@ -99,7 +115,7 @@ function applyItemsToCache(
       merged,
       missingHere,
       filters,
-      isSessionDeleting,
+      skipInsert,
       viewerId,
     );
     for (const row of inserted) {
@@ -207,6 +223,10 @@ export function SessionUpdatesProvider({ children }: { children: ReactNode }) {
   // socket reconnects, so changes missed while disconnected are caught by
   // the post-reconnect snapshot.
   const commentsFingerprintsRef = useRef(new Map<string, string>());
+
+  // Last permission level streamed for the open session, so a change to it
+  // (a share upgraded or revoked) reconciles list membership.
+  const activePermissionRef = useRef<{ id: string; level: number | null } | null>(null);
 
   // The frame handler is installed once (effect deps are [queryClient]) but
   // the active route changes over the socket's lifetime. Keep the current
@@ -371,8 +391,17 @@ export function SessionUpdatesProvider({ children }: { children: ReactNode }) {
           refreshProjects();
           void queryClient.invalidateQueries({ queryKey: ["project-config"] });
           return;
+        case "access_changed":
+          // The server decides whether the session now belongs in Shared.
+          scheduleInvalidate();
+          return;
         case "removed":
-          for (const id of frame.ids) commentsFingerprintsRef.current.delete(id);
+          for (const id of frame.ids) {
+            commentsFingerprintsRef.current.delete(id);
+            // A revoked share or a deletion must not be re-injected by the
+            // keep-alive once the refetch correctly leaves it out.
+            unmarkRecentlyCreated(id);
+          }
           queryClient.setQueryData<PinnedConversationsResult>(
             PINNED_CONVERSATIONS_KEY,
             (previous) =>
@@ -429,7 +458,24 @@ export function SessionUpdatesProvider({ children }: { children: ReactNode }) {
           const sidebarMissingIds = activeIdRef.current
             ? missingIds.filter((id) => id !== activeIdRef.current)
             : missingIds;
-          if (sidebarMissingIds.length > 0 || needsRefetch) scheduleInvalidate();
+          // Reconcile list membership when the open session's permission
+          // changes (e.g. its owner shares it with the viewer directly, or
+          // revokes a direct share while a link share remains), not on every
+          // activity update. The refetch is authoritative, so the keep-alive
+          // must not re-inject the row over it.
+          const active = activeIdRef.current;
+          const activeItem = active ? frame.items.find((item) => item.id === active) : undefined;
+          let activePermissionChanged = false;
+          if (active && activeItem) {
+            const level = activeItem.permission_level ?? null;
+            const seen = activePermissionRef.current;
+            activePermissionChanged = seen?.id === active && seen.level !== level;
+            activePermissionRef.current = { id: active, level };
+            if (activePermissionChanged) unmarkRecentlyCreated(active);
+          }
+          if (sidebarMissingIds.length > 0 || needsRefetch || activePermissionChanged) {
+            scheduleInvalidate();
+          }
           return;
         }
       }
