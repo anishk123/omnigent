@@ -354,6 +354,23 @@ describe("PullRequestChangesTab viewed files", () => {
     expect(store.result.current.pathFilter).toBe("a.ts");
     expect(store.result.current.hideViewed).toBe(false);
     expect(isListed("a.ts")).toBe(true);
+    expect(isCollapsed("a.ts")).toBe(false);
+  });
+
+  it("keeps files the reader collapsed with Collapse all on a new head", () => {
+    const { rerender } = render(
+      viewedTab({ conversationId: "viewed-collapse-all", head: "head1" }),
+    );
+    fireEvent.click(viewedBox("a.ts"));
+    fireEvent.click(screen.getByRole("button", { name: "Collapse all diffs" }));
+    expect(isCollapsed("a.ts")).toBe(true);
+    expect(isCollapsed("b.ts")).toBe(true);
+
+    rerender(viewedTab({ conversationId: "viewed-collapse-all", head: "head2" }));
+
+    expect(viewedBox("a.ts")).not.toBeChecked();
+    expect(isCollapsed("a.ts")).toBe(true);
+    expect(isCollapsed("b.ts")).toBe(true);
   });
 
   it("expands files collapsed by old marks on a new head but keeps manual collapses", () => {

@@ -438,40 +438,37 @@ export function PullRequestChangesTab({
   );
   // Viewed files start collapsed once per rendered head. A collapse that marks introduced
   // expands again on a new head, since its mark was reset; the reader's own collapses stay.
-  const markCollapsedRef = useRef<ReadonlySet<string>>(new Set());
-  const [seededHead, setSeededHead] = useState<string | null>(null);
-  if (viewedFiles.available && renderedHead !== seededHead) {
-    const previousMarkCollapsed = markCollapsedRef.current;
+  const [seed, setSeed] = useState<{ head: string | null; owned: ReadonlySet<string> }>({
+    head: null,
+    owned: new Set(),
+  });
+  if (viewedFiles.available && renderedHead !== seed.head) {
     // A path is the reader's own collapse unless the previous head's marks collapsed it.
-    markCollapsedRef.current = new Set(
-      [...viewedFiles.viewed].filter(
-        (path) => !collapsedPaths.has(path) || previousMarkCollapsed.has(path),
-      ),
+    const owned = new Set(
+      [...viewedFiles.viewed].filter((path) => !collapsedPaths.has(path) || seed.owned.has(path)),
     );
-    setSeededHead(renderedHead);
+    setSeed({ head: renderedHead, owned });
     setCollapsedPaths(
       (prev) =>
-        new Set(
-          [...prev]
-            .filter((path) => !previousMarkCollapsed.has(path))
-            .concat([...viewedFiles.viewed]),
-        ),
+        new Set([...prev].filter((path) => !seed.owned.has(path)).concat([...viewedFiles.viewed])),
     );
   }
   // A manual toggle hands the file's collapse to the reader.
   const releaseMarkCollapse = useCallback((paths: Iterable<string>) => {
-    const next = new Set(markCollapsedRef.current);
-    for (const path of paths) next.delete(path);
-    markCollapsedRef.current = next;
+    setSeed((prev) => {
+      const owned = new Set(prev.owned);
+      for (const path of paths) owned.delete(path);
+      return { ...prev, owned };
+    });
   }, []);
   // Marking a file collapses it; unmarking leaves its current state alone.
   const toggleViewed = useCallback(
     (path: string) => {
       const markViewed = !viewedFiles.viewed.has(path);
-      viewedFiles.toggle(path);
+      viewedFiles.setMany([path], markViewed);
       if (!markViewed) return;
       if (!collapsedPaths.has(path)) {
-        markCollapsedRef.current = new Set(markCollapsedRef.current).add(path);
+        setSeed((prev) => ({ ...prev, owned: new Set(prev.owned).add(path) }));
       }
       clearReveal(path);
       setCollapsedPaths((prev) => (prev.has(path) ? prev : new Set(prev).add(path)));
