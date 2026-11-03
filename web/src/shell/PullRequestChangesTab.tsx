@@ -453,7 +453,8 @@ export function PullRequestChangesTab({
   const [sidebarCollapsed, setSidebarCollapsed] = useState(mobile);
   // A filter set in the sidebar stays visible once the sidebar collapses.
   useEffect(() => {
-    if (sidebarCollapsed && view.pathFilter !== "") setFilterOpen(true);
+    if (!sidebarCollapsed) setFilterOpen(false);
+    else if (view.pathFilter !== "") setFilterOpen(true);
   }, [sidebarCollapsed, view.pathFilter]);
   // Hiding the inline filter also clears it, so an active filter is never out of sight.
   const toggleInlineFilter = () => {

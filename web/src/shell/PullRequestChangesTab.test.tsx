@@ -369,6 +369,25 @@ describe("PullRequestChangesTab", () => {
     expect(inline).toHaveValue("");
   });
 
+  it("closes the inline filter when the sidebar expands again", () => {
+    const { container } = render(tree(tabProps("changes-tab-inline-close")));
+    fireEvent.click(screen.getByRole("button", { name: "Hide file list" }));
+    expect(screen.queryByRole("searchbox", { name: "Filter changed files" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Show file list" }));
+    fireEvent.change(screen.getByRole("searchbox", { name: "Filter changed files" }), {
+      target: { value: "util" },
+    });
+    expect(listedPaths(container)).toEqual(["src/util.ts"]);
+    fireEvent.click(screen.getByRole("button", { name: "Hide file list" }));
+    expect(screen.getByRole("searchbox", { name: "Filter changed files" })).toHaveValue("util");
+    fireEvent.keyDown(screen.getByRole("searchbox", { name: "Filter changed files" }), {
+      key: "Escape",
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Show file list" }));
+    fireEvent.click(screen.getByRole("button", { name: "Hide file list" }));
+    expect(screen.queryByRole("searchbox", { name: "Filter changed files" })).toBeNull();
+  });
+
   it("groups threads on filtered-out files apart from earlier conversations", () => {
     const conversationId = "changes-tab-threads";
     const threadOn = (id: string, path: string) => ({ id, path, resolved: false }) as ReviewThread;
