@@ -393,9 +393,12 @@ export function PullRequestChangesTab({
   const mobile = useIsMobileViewport();
   const view = useChangesViewState(conversationId, data.selected_pr_url ?? pr.url);
   const { revealedPaths, reveal, clearReveal } = view;
-  // The head of the diff on screen. A polled head only counts once its list and diff render.
+  // The head of the diff on screen. A polled head only counts once the list and diff agree on it.
+  const listHead = changes.data?.head_sha ?? pr.head_sha ?? null;
   const renderedHead =
-    changes.data && prDiff.data ? (changes.data.head_sha ?? pr.head_sha ?? null) : null;
+    changes.data && prDiff.data && listHead === (prDiff.data.head_sha ?? pr.head_sha ?? null)
+      ? listHead
+      : null;
   const viewedFiles = useViewedFiles(identity, renderedHead);
 
   const themeType = useResolvedThemeMode();
@@ -438,7 +441,7 @@ export function PullRequestChangesTab({
   const [seededHead, setSeededHead] = useState<string | null>(null);
   if (viewedFiles.available && renderedHead !== seededHead) {
     setSeededHead(renderedHead);
-    setCollapsedPaths(new Set(viewedFiles.viewed));
+    setCollapsedPaths((prev) => new Set([...prev, ...viewedFiles.viewed]));
   }
   // Marking a file collapses it; unmarking leaves its current state alone.
   const toggleViewed = useCallback(
@@ -452,7 +455,7 @@ export function PullRequestChangesTab({
     [viewedFiles, clearReveal],
   );
 
-  // Viewed-storage failures are reported once, under a fixed toast id.
+  // Fixed id keeps repeated failures from stacking toasts.
   useEffect(() => {
     if (!viewedFiles.persisted) {
       toast.error("Viewed files can't be saved on this device.", { id: "pr-viewed-persistence" });
@@ -690,7 +693,7 @@ export function PullRequestChangesTab({
     if (file) {
       // A thread on a filtered-out file has no mounted section, so show it first.
       if (!visibleFiles.includes(file)) {
-        view.setPathFilter("");
+        if (!filterChangedPaths([file], view.pathFilter).length) view.setPathFilter("");
         if (viewedFiles.viewed.has(file.path)) view.setHideViewed(false);
       }
       jumpTo(file.path);

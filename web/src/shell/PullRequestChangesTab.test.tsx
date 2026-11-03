@@ -102,6 +102,7 @@ function viewedTab({
   hasMore = false,
   identity = IDENTITY,
   threads = [],
+  diffHead = head,
 }: {
   conversationId: string;
   head?: string;
@@ -109,6 +110,8 @@ function viewedTab({
   hasMore?: boolean;
   identity?: PullRequestIdentity | null;
   threads?: ReviewThread[];
+  /** The head the loaded patch was fetched for, when it differs from the list's. */
+  diffHead?: string;
 }) {
   const props = {
     conversationId,
@@ -123,7 +126,7 @@ function viewedTab({
     canEdit: false,
     selected: true,
     changes: { data: { available: true, data: files, has_more: hasMore, head_sha: head } },
-    prDiff: { data: { head_sha: head, base_sha: "base" }, isLoading: false },
+    prDiff: { data: { head_sha: diffHead, base_sha: "base" }, isLoading: false },
     reviews: {
       page: { data: threads, head_sha: head, base_sha: "base" },
       isFetching: false,
@@ -243,6 +246,20 @@ describe("PullRequestChangesTab viewed files", () => {
     expect(screen.queryByText(/viewed marks were reset/)).toBeNull();
     rerender(viewedTab({ conversationId: "viewed-head", head: "head2" }));
     expect(screen.queryByText(/viewed marks were reset/)).toBeNull();
+  });
+
+  it("waits for the list and the patch to agree on a head", () => {
+    const { rerender } = render(viewedTab({ conversationId: "viewed-mismatch", head: "head1" }));
+    fireEvent.click(viewedBox("a.ts"));
+
+    // The list moved to head2 while the patch on screen is still head1.
+    rerender(viewedTab({ conversationId: "viewed-mismatch", head: "head2", diffHead: "head1" }));
+    expect(viewedBox("a.ts")).toBeDisabled();
+    expect(screen.queryByText(/viewed marks were reset/)).toBeNull();
+
+    rerender(viewedTab({ conversationId: "viewed-mismatch", head: "head2" }));
+    expect(viewedBox("a.ts")).not.toBeChecked();
+    expect(screen.getByText(/viewed marks were reset/)).toBeInTheDocument();
   });
 
   it("clears the reset notice once a file is marked on the new head", () => {
