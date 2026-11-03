@@ -22,6 +22,8 @@ request's Changes subtab. Top-level comments remain in Comments.
   The plus hides while the composer is open; its top-right X closes it.
 - `history`: On-demand pages, incomplete/error states, resolved collapse,
   unresolved navigation and original context for unplaceable conversations.
+  Conversations on files hidden by the path filter are hidden with their file.
+  Navigating to one clears the filter and shows **Filter cleared to show <file>**.
 - `thread-refresh`: Threads fetch separately and poll while Changes is open;
   other subtabs, the PR list and the collapsed rail stop requesting them.
   A compact **Loading review threads** spinner beside the layout toggle indicates

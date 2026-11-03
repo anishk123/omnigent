@@ -1118,7 +1118,7 @@ def test_changes_filter_copy_open(page: Page, seeded_session: tuple[str, str], e
     is_mobile = entry == "composer-mobile"
     pr_url = _INFO["pr"]["url"]
     _stub_github(page)
-    # Pin the list and the patch to head/base, with a fork as the head repository.
+    # Supply fork metadata and revisions for the Open-link assertion.
     page.route(
         re.compile(r"/resources/github(?:\?|$)"),
         lambda route: route.fulfill(
@@ -1150,7 +1150,9 @@ def test_changes_filter_copy_open(page: Page, seeded_session: tuple[str, str], e
         def session_details(route: Route) -> None:
             response = fetch_with_retry(route)
             snapshot = response.json()
-            snapshot.update(workspace=workspace, git_branch="feature/github-tab")
+            snapshot.update(
+                workspace=workspace, git_branch="feature/github-tab", host_id="composer-pr-host"
+            )
             route.fulfill(response=response, json=snapshot)
 
         page.route(re.compile(rf"/v1/sessions/{session_id}(?:\?.*)?$"), session_details)

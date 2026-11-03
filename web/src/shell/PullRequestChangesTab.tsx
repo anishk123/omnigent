@@ -364,6 +364,18 @@ function ChangesSidebar({
   );
 }
 
+/** Why a file's Open action is unavailable, shown as the disabled item's reason. */
+function openUnavailableReason(
+  providerLabel: string,
+  supported: boolean,
+  sourceRepoUrl: string | null | undefined,
+): string {
+  if (!supported) return `Opening files isn’t supported for ${providerLabel}`;
+  if (!sourceRepoUrl) return "Source repository unavailable";
+  if (!sourceRepoUrl.startsWith("https://")) return "Repository URL isn’t secure";
+  return "Revision unknown";
+}
+
 const NO_HIDDEN_PATHS: ReadonlySet<string> = new Set();
 
 /**
@@ -439,6 +451,15 @@ export function PullRequestChangesTab({
     [collapsedPaths, revealedPaths],
   );
   const [sidebarCollapsed, setSidebarCollapsed] = useState(mobile);
+  // A filter set in the sidebar stays visible once the sidebar collapses.
+  useEffect(() => {
+    if (sidebarCollapsed && view.pathFilter !== "") setFilterOpen(true);
+  }, [sidebarCollapsed, view.pathFilter]);
+  // Hiding the inline filter also clears it, so an active filter is never out of sight.
+  const toggleInlineFilter = () => {
+    if (filterOpen) view.setPathFilter("");
+    setFilterOpen(!filterOpen);
+  };
   // Collapsed folders in the sidebar tree (empty = all expanded).
   const [collapsedDirs, setCollapsedDirs] = useState<ReadonlySet<string>>(() => new Set());
   const toggleDir = useCallback((path: string) => {
@@ -610,11 +631,7 @@ export function PullRequestChangesTab({
       previousPath: renamedFrom,
       status: file.status,
     });
-    const unavailableReason = !baseRepoUrl
-      ? `Opening files isn’t supported for ${providerLabel}`
-      : !sourceRepoUrl
-        ? "Source repository unavailable"
-        : "Revision unknown";
+    const unavailableReason = openUnavailableReason(providerLabel, !!baseRepoUrl, sourceRepoUrl);
     return (
       <div className="flex items-center gap-1">
         <PullRequestFileActions
@@ -761,9 +778,7 @@ export function PullRequestChangesTab({
           sidebarCollapsed={sidebarCollapsed}
           onToggleSidebar={() => setSidebarCollapsed((v) => !v)}
           filterOpen={filterOpen}
-          onToggleFilter={
-            files.length > 0 && sidebarCollapsed ? () => setFilterOpen((open) => !open) : undefined
-          }
+          onToggleFilter={files.length > 0 && sidebarCollapsed ? toggleInlineFilter : undefined}
           canNavigateThreads={unresolved.length > 0}
           onNavigateThread={navigateThread}
           loadingThreads={reviews.isFetching}
@@ -774,7 +789,7 @@ export function PullRequestChangesTab({
         />
       )}
       {/* With the sidebar collapsed (narrow screens), the filter opens above the list. */}
-      {sidebarCollapsed && files.length > 0 && (filterOpen || view.pathFilter !== "") && (
+      {sidebarCollapsed && files.length > 0 && filterOpen && (
         <div className="shrink-0 border-b border-border p-2">
           <PullRequestPathFilter value={view.pathFilter} onChange={view.setPathFilter} />
         </div>

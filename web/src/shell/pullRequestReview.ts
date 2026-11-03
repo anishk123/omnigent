@@ -37,7 +37,7 @@ const PR_PATH_MARKERS: Record<string, string> = {
 export function pullRequestRepoUrl(provider: string | null, prUrl: string): string | null {
   const marker =
     provider && Object.hasOwn(PR_PATH_MARKERS, provider) ? PR_PATH_MARKERS[provider] : "";
-  const index = marker ? prUrl.indexOf(marker) : -1;
+  const index = marker ? prUrl.lastIndexOf(marker) : -1;
   return index > 0 ? prUrl.slice(0, index) : null;
 }
 

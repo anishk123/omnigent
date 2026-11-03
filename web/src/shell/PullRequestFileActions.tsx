@@ -75,8 +75,9 @@ export function PullRequestFileActions({
               </a>
             </DropdownMenuItem>
           ) : (
-            <DropdownMenuItem disabled title={openUnavailableReason}>
+            <DropdownMenuItem disabled className="flex-col items-start">
               {openLabel}
+              <span className="text-xs text-muted-foreground">{openUnavailableReason}</span>
             </DropdownMenuItem>
           )}
         </DropdownMenuContent>

@@ -264,6 +264,12 @@ function renderPanel(mobile = false, active?: boolean) {
 /** Render, then switch to the Changes tab — Summary is the default, so the
  *  diff view (and its toolbar) only exists after activating Changes. Radix
  *  tabs select on pointer-down, so mouseDown (not click) flips the tab. */
+function renderChanges() {
+  const r = renderPanel();
+  fireEvent.mouseDown(screen.getByRole("tab", { name: "Changes" }));
+  return r;
+}
+
 /**
  * Sidebar rows and section toggles by name. A file's copy and overflow buttons carry the
  * path in their labels and the overflow trigger reports aria-expanded, so skip labeled buttons.
@@ -272,12 +278,6 @@ function fileRowButtons(name: RegExp) {
   return screen
     .getAllByRole("button", { name })
     .filter((button) => !button.hasAttribute("aria-label"));
-}
-
-function renderChanges() {
-  const r = renderPanel();
-  fireEvent.mouseDown(screen.getByRole("tab", { name: "Changes" }));
-  return r;
 }
 
 /** Render, then switch to the Comments tab (see renderChanges). */

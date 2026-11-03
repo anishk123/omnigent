@@ -309,9 +309,9 @@ describe("PullRequestChangesTab", () => {
       ),
     );
     openMenu("src/app.ts");
-    const disabled = screen.getByRole("menuitem", { name: "Open in GitHub" });
+    const disabled = screen.getByRole("menuitem", { name: /Open in GitHub/ });
     expect(disabled).toHaveAttribute("data-disabled");
-    expect(disabled).toHaveAttribute("title", "Source repository unavailable");
+    expect(disabled).toHaveTextContent("Source repository unavailable");
     expect(disabled).not.toHaveAttribute("href");
   });
 
@@ -333,9 +333,32 @@ describe("PullRequestChangesTab", () => {
         target: { value: "readme" },
       });
       expect(listedPaths(container)).toEqual(["README.md"]);
+      // Hiding the inline filter clears it, so the list is never narrowed out of sight.
+      fireEvent.click(screen.getByRole("button", { name: "Hide file filter" }));
+      expect(screen.queryByRole("searchbox", { name: "Filter changed files" })).toBeNull();
+      expect(listedPaths(container)).toEqual(["src/app.ts", "src/util.ts", "README.md"]);
     } finally {
       mocks.mobile = false;
     }
+  });
+
+  it("reports a failed copy and keeps the sidebar filter open after collapse", async () => {
+    mocks.copyText.mockRejectedValueOnce(new Error("denied"));
+    const conversationId = "changes-tab-copy-failure";
+    render(tree(tabProps(conversationId)));
+    fireEvent.click(screen.getByRole("button", { name: "Copy path src/app.ts" }));
+    expect(await screen.findByText("Couldn’t copy path")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole("searchbox", { name: "Filter changed files" }), {
+      target: { value: "util" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Hide file list" }));
+    const inline = screen.getByRole("searchbox", { name: "Filter changed files" });
+    expect(inline).toHaveValue("util");
+    // Clearing with Escape must keep the same input mounted, so focus stays in it.
+    fireEvent.keyDown(inline, { key: "Escape" });
+    expect(screen.getByRole("searchbox", { name: "Filter changed files" })).toBe(inline);
+    expect(inline).toHaveValue("");
   });
 
   it("groups threads on filtered-out files apart from earlier conversations", () => {
