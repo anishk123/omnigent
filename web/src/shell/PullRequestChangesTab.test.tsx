@@ -247,6 +247,44 @@ describe("PullRequestChangesTab", () => {
     );
   });
 
+  it.each([
+    {
+      provider: "gitlab",
+      display: {
+        id: "gitlab",
+        display_name: "GitLab",
+        request_name: "merge request",
+        number_prefix: "!",
+      },
+      prUrl: "https://gitlab.com/acme/app/-/merge_requests/1",
+      fork: "https://gitlab.com/fork/app",
+      label: "Open in GitLab",
+      href: "https://gitlab.com/fork/app/-/blob/head/src/app.ts",
+    },
+    {
+      provider: "azure_devops",
+      display: {
+        id: "azure_devops",
+        display_name: "Azure DevOps",
+        request_name: "pull request",
+        number_prefix: "#",
+      },
+      prUrl: "https://dev.azure.com/acme/web/_git/app/pullrequest/1",
+      fork: "https://dev.azure.com/fork/web/_git/app",
+      label: "Open in Azure DevOps",
+      href: "https://dev.azure.com/fork/web/_git/app?path=/src/app.ts&version=GChead",
+    },
+  ])("labels and links Open for $provider", ({ provider, display, prUrl, fork, label, href }) => {
+    const props = tabProps(`changes-tab-${provider}`, {
+      files: [changed("src/app.ts")],
+      pr: { url: prUrl, head_repository_url: fork },
+    });
+    props.data = { ...props.data, provider, provider_display: display } as typeof props.data;
+    render(tree(props));
+    openMenu("src/app.ts");
+    expect(screen.getByRole("menuitem", { name: label })).toHaveAttribute("href", href);
+  });
+
   it("opens a deleted file at the base revision in the base repository", () => {
     const conversationId = "changes-tab-open-deleted";
     render(
