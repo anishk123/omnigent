@@ -10,11 +10,13 @@ import type * as SonnerModule from "sonner";
 import { PullRequestChangesTab } from "./PullRequestChangesTab";
 import { useChangesViewState } from "./useChangesViewState";
 
-const toastError = vi.hoisted(() => vi.fn());
-vi.mock("sonner", async (importOriginal) => {
-  const actual = await importOriginal<typeof SonnerModule>();
-  return { ...actual, toast: { ...actual.toast, error: toastError } };
-});
+const toast = vi.hoisted(() =>
+  Object.assign(vi.fn(), { error: vi.fn(), success: vi.fn(), info: vi.fn(), warning: vi.fn() }),
+);
+vi.mock("sonner", async (importOriginal) => ({
+  ...(await importOriginal<typeof SonnerModule>()),
+  toast,
+}));
 vi.mock("@/hooks/useViewerId", () => ({ useViewerId: () => "alice" }));
 vi.mock("@/hooks/usePullRequests", async (importOriginal) => ({
   ...(await importOriginal<typeof UsePullRequestsModule>()),
@@ -170,7 +172,7 @@ describe("PullRequestChangesTab viewed files", () => {
     localStorage.clear();
     // A cleared-storage event also drops in-memory fallback values from earlier tests.
     window.dispatchEvent(new StorageEvent("storage", { key: null }));
-    toastError.mockClear();
+    toast.error.mockClear();
   });
   afterEach(() => {
     vi.restoreAllMocks();
@@ -252,12 +254,13 @@ describe("PullRequestChangesTab viewed files", () => {
     expect(screen.queryByText(/viewed marks were reset/)).toBeNull();
   });
 
-  it("withholds viewed state when the list is not pinned to a head", () => {
+  it("hides viewed state when the list is not pinned to a head", () => {
     // A provider that ignores revision pinning can serve a newer patch than the polled head.
     render(viewedTab({ conversationId: "viewed-unpinned", listHead: null }));
 
-    expect(viewedBox("a.ts")).toBeDisabled();
+    expect(screen.queryByRole("checkbox", { name: "Viewed a.ts" })).toBeNull();
     expect(screen.queryByText(/files viewed/)).toBeNull();
+    expect(screen.queryByRole("checkbox", { name: "Hide viewed" })).toBeNull();
   });
 
   it("waits for the list and the patch to agree on a head", () => {
@@ -266,7 +269,7 @@ describe("PullRequestChangesTab viewed files", () => {
 
     // The list moved to head2 while the patch on screen is still head1.
     rerender(viewedTab({ conversationId: "viewed-mismatch", head: "head2", diffHead: "head1" }));
-    expect(viewedBox("a.ts")).toBeDisabled();
+    expect(screen.queryByRole("checkbox", { name: "Viewed a.ts" })).toBeNull();
     expect(screen.queryByText(/viewed marks were reset/)).toBeNull();
 
     rerender(viewedTab({ conversationId: "viewed-mismatch", head: "head2" }));
@@ -305,18 +308,19 @@ describe("PullRequestChangesTab viewed files", () => {
 
     expect(viewedBox("a.ts")).toBeChecked();
     expect(viewedBox("b.ts")).toBeChecked();
-    expect(toastError).toHaveBeenCalledTimes(1);
-    expect(toastError).toHaveBeenCalledWith(
+    expect(toast.error).toHaveBeenCalledTimes(1);
+    expect(toast.error).toHaveBeenCalledWith(
       "Viewed files can't be saved on this device.",
       expect.objectContaining({ id: "pr-viewed-persistence" }),
     );
   });
 
-  it("disables the viewed controls until the PR identity is known", () => {
+  it("hides the viewed controls until the PR identity is known", () => {
     render(viewedTab({ conversationId: "viewed-unknown", identity: null }));
 
-    expect(viewedBox("a.ts")).toBeDisabled();
-    expect(screen.getByRole("checkbox", { name: "Hide viewed" })).toBeDisabled();
+    expect(screen.queryByRole("checkbox", { name: "Viewed a.ts" })).toBeNull();
+    expect(isListed("a.ts")).toBe(true);
+    expect(screen.queryByRole("checkbox", { name: "Hide viewed" })).toBeNull();
     expect(screen.queryByText(/files viewed/)).toBeNull();
   });
 

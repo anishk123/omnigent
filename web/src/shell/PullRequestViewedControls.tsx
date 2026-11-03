@@ -1,50 +1,25 @@
 // Viewed-file controls for the pull request Changes tab: the per-file "Viewed"
 // checkbox in each file's header, and the progress and "Hide viewed" row in the toolbar.
+// The Changes tab renders them only while viewed state is available.
 
 import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { cn } from "@/lib/utils";
 
-/** The "Viewed" checkbox in a file's header; disabled while the viewed key is unknown. */
+/** The "Viewed" checkbox in a file's header. */
 export function PullRequestViewedToggle({
   path,
   viewed,
-  available,
   onToggle,
 }: {
   path: string;
   viewed: boolean;
-  available: boolean;
   onToggle: () => void;
 }) {
-  const toggle = (
-    <label
-      className={cn(
-        "flex shrink-0 items-center gap-1.5 px-1 text-xs text-muted-foreground",
-        available ? "cursor-pointer" : "opacity-50",
-      )}
-    >
-      <Checkbox
-        checked={viewed}
-        disabled={!available}
-        onCheckedChange={onToggle}
-        aria-label={`Viewed ${path}`}
-      />
+  return (
+    <label className="flex shrink-0 cursor-pointer items-center gap-1.5 px-1 text-xs text-muted-foreground">
+      <Checkbox checked={viewed} onCheckedChange={onToggle} aria-label={`Viewed ${path}`} />
       Viewed
     </label>
-  );
-  if (available) return toggle;
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        {/* Focusable so keyboard users can reach the tooltip explaining the disabled box. */}
-        <span className="flex" tabIndex={0}>
-          {toggle}
-        </span>
-      </TooltipTrigger>
-      <TooltipContent>Viewed state unavailable</TooltipContent>
-    </Tooltip>
   );
 }
 
@@ -53,7 +28,6 @@ export function PullRequestViewedProgress({
   viewedCount,
   totalCount,
   partial,
-  available,
   mobile,
   hideViewed,
   onHideViewedChange,
@@ -62,7 +36,6 @@ export function PullRequestViewedProgress({
   totalCount: number;
   /** The changed-file list is truncated, so the total is a lower bound. */
   partial: boolean;
-  available: boolean;
   /** Mobile shows the count only. */
   mobile: boolean;
   hideViewed: boolean;
@@ -70,22 +43,17 @@ export function PullRequestViewedProgress({
 }) {
   return (
     <div className="flex items-center gap-2 whitespace-nowrap text-xs text-muted-foreground">
-      {available && (
-        <>
-          <span>{`${viewedCount} / ${totalCount} files viewed${partial ? " (partial)" : ""}`}</span>
-          {!mobile && (
-            <Progress
-              aria-label="Files viewed"
-              value={totalCount > 0 ? (viewedCount / totalCount) * 100 : 0}
-              className="w-16"
-            />
-          )}
-        </>
+      <span>{`${viewedCount} / ${totalCount} files viewed${partial ? " (partial)" : ""}`}</span>
+      {!mobile && (
+        <Progress
+          aria-label="Files viewed"
+          value={totalCount > 0 ? (viewedCount / totalCount) * 100 : 0}
+          className="w-16"
+        />
       )}
-      <label className={cn("flex items-center gap-1.5 px-1", !available && "opacity-50")}>
+      <label className="flex items-center gap-1.5 px-1">
         <Checkbox
           checked={hideViewed}
-          disabled={!available}
           onCheckedChange={(checked) => onHideViewedChange(checked === true)}
         />
         Hide viewed

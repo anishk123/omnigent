@@ -794,12 +794,11 @@ export function PullRequestChangesTab({
           allCollapsed={allCollapsed}
           onToggleAll={toggleAll}
           progress={
-            files.length > 0 ? (
+            files.length > 0 && viewedFiles.available ? (
               <PullRequestViewedProgress
                 viewedCount={viewedCount}
                 totalCount={files.length}
                 partial={!!changes.data?.has_more}
-                available={viewedFiles.available}
                 mobile={mobile}
                 hideViewed={view.hideViewed}
                 onHideViewedChange={view.setHideViewed}
@@ -895,14 +894,15 @@ export function PullRequestChangesTab({
                 forceExpanded={revealedPaths.has(file.path)}
                 onToggleCollapsed={() => toggleOne(file.path)}
                 headerActions={
-                  <div className="flex items-center gap-1">
-                    <PullRequestViewedToggle
-                      path={file.path}
-                      viewed={viewedFiles.viewed.has(file.path)}
-                      available={viewedFiles.available}
-                      onToggle={() => toggleViewed(file.path)}
-                    />
-                  </div>
+                  viewedFiles.available ? (
+                    <div className="flex items-center gap-1">
+                      <PullRequestViewedToggle
+                        path={file.path}
+                        viewed={viewedFiles.viewed.has(file.path)}
+                        onToggle={() => toggleViewed(file.path)}
+                      />
+                    </div>
+                  ) : undefined
                 }
                 threads={threadsByFile.get(file.path) ?? []}
                 threadContext={threadContext}

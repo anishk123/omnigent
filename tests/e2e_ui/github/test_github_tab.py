@@ -1174,7 +1174,7 @@ def test_changes_viewed_progress_persists_and_resets(
         )
     # Marking collapses the file's diff.
     expect(
-        panel.get_by_role("button", name=re.compile("README.md"), expanded=False)
+        panel.get_by_role("button", name=re.compile(r"^README\.md"), expanded=False)
     ).to_be_visible()
     page.screenshot(path=str(tmp_path / f"viewed-{entry}-marked.png"), animations="disabled")
 
