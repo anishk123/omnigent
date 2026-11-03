@@ -323,6 +323,24 @@ describe("PullRequestChangesTab", () => {
     );
   });
 
+  it("shows the revision as unknown when no revision is known", () => {
+    const conversationId = "changes-tab-open-no-revision";
+    const props = tabProps(conversationId, {
+      files: [changed("src/app.ts")],
+      pr: { head_sha: undefined },
+    });
+    props.changes = {
+      ...props.changes,
+      data: { ...props.changes.data, head_sha: undefined, base_sha: undefined },
+    } as typeof props.changes;
+    render(tree(props));
+    openMenu("src/app.ts");
+    const disabled = screen.getByRole("menuitem", { name: /Open in GitHub/ });
+    expect(disabled).toHaveAttribute("data-disabled");
+    expect(disabled).toHaveTextContent("Revision unknown");
+    expect(disabled).not.toHaveAttribute("href");
+  });
+
   it("puts every file action in the overflow menu on mobile", () => {
     mocks.mobile = true;
     try {

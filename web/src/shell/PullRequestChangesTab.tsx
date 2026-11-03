@@ -634,15 +634,13 @@ export function PullRequestChangesTab({
     });
     const unavailableReason = openUnavailableReason(providerLabel, !!baseRepoUrl, sourceRepoUrl);
     return (
-      <div className="flex items-center gap-1">
-        <PullRequestFileActions
-          path={file.path}
-          previousPath={renamedFrom}
-          openLabel={`Open in ${providerLabel}`}
-          openUrl={openUrl}
-          openUnavailableReason={unavailableReason}
-        />
-      </div>
+      <PullRequestFileActions
+        path={file.path}
+        previousPath={renamedFrom}
+        openLabel={`Open in ${providerLabel}`}
+        openUrl={openUrl}
+        openUnavailableReason={unavailableReason}
+      />
     );
   };
 
