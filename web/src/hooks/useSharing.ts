@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { SharingMode } from "@/lib/capabilities";
+import type { SharingMode, SiblingSessionDestinations } from "@/lib/capabilities";
 import { authenticatedFetch } from "@/lib/identity";
 
 /** Server-wide sharing settings from ``GET /v1/sharing`` (admin). */
@@ -22,6 +22,9 @@ export interface SharingState {
   /** False when the deployment manages this default itself (not file-backed). */
   default_public_sessions_editable: boolean;
   default_public_sessions_options: DefaultPublicSessions[];
+  sibling_session_destinations: SiblingSessionDestinations;
+  sibling_session_destinations_editable: boolean;
+  sibling_session_destinations_options: SiblingSessionDestinations[];
 }
 
 /** ``off`` = all private, ``sandbox`` = cloud sandbox sessions public, ``all`` = every session. */
@@ -33,6 +36,7 @@ export interface SharingUpdate {
   public_sharing?: boolean;
   public_sharing_max_level?: "read" | "edit";
   default_public_sessions?: DefaultPublicSessions;
+  sibling_session_destinations?: SiblingSessionDestinations;
 }
 
 const QUERY_KEY = ["sharing"];

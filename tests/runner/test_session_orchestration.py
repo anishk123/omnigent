@@ -189,6 +189,36 @@ async def test_independent_creation_does_not_fall_back_on_unsupported_server(pla
 
 
 @pytest.mark.asyncio
+async def test_managed_creation_respects_current_host_policy_before_posting():
+    requests = []
+
+    def respond(request):
+        requests.append(request)
+        return httpx.Response(
+            200,
+            json={
+                "sibling_sessions": True,
+                "sibling_session_destinations": "current_host",
+            },
+        )
+
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(respond), base_url="http://server"
+    ) as client:
+        result = json.loads(
+            await execute_tool(
+                tool_name="sys_session_create",
+                arguments=json.dumps({"agent_id": "worker", "placement": "managed"}),
+                server_client=client,
+                conversation_id="manager",
+            )
+        )
+
+    assert "only allows Add Agent on the current host" in result["error"]
+    assert [(request.method, request.url.path) for request in requests] == [("GET", "/v1/info")]
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "failure", ["timeout", "non_json", "null", "list", "empty", "non_bool", 408, 429, 503]
 )

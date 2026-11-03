@@ -76,9 +76,13 @@ export type FeatureKey =
 /** Deployment-wide release-feature values advertised by the server. */
 export type FeatureValues = Record<string, boolean>;
 
+export type SiblingSessionDestinations =
+  "current_host" | "current_host_or_new_sandbox" | "any_host";
+
 /** Shape of the response from ``GET /v1/info``. */
 export interface ServerInfo {
   sibling_sessions?: boolean;
+  sibling_session_destinations?: SiblingSessionDestinations;
   accounts_enabled: boolean;
   /**
    * True only on an explicit single-user local runtime
@@ -387,6 +391,7 @@ function parseBranding(raw: unknown): Branding | null {
 
 /** Sentinel used when the probe fails — accounts and release features are off. */
 export const FALLBACK_SERVER_INFO: ServerInfo = {
+  sibling_session_destinations: "any_host",
   accounts_enabled: false,
   // Fail to multi-user: a failed probe must not hide account/sharing chrome.
   single_user: false,
@@ -535,6 +540,11 @@ export async function resolveServerInfo(): Promise<ServerInfo> {
         const harnessInstallEnabled = data.harness_install_enabled === true;
         cachedServerInfo = {
           sibling_sessions: data.sibling_sessions === true,
+          sibling_session_destinations:
+            data.sibling_session_destinations === "current_host" ||
+            data.sibling_session_destinations === "current_host_or_new_sandbox"
+              ? data.sibling_session_destinations
+              : "any_host",
           accounts_enabled: data.accounts_enabled === true,
           single_user: data.single_user === true,
           login_url: typeof data.login_url === "string" ? data.login_url : null,

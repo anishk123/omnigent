@@ -1,11 +1,11 @@
 """Admin route for the server-wide session-sharing policy.
 
-``GET /v1/sharing`` reports three independent settings and whether each is
+``GET /v1/sharing`` reports the server's sharing and Add Agent settings and whether each is
 editable here: the sharing *mode* (the tri-state tier + tier list), whether
 *public* (anyone-with-the-link) access may be granted, and which new sessions
 start public by default. ``PUT /v1/sharing`` sets any of them (admin only),
 persisting an override file in the data dir that the grant gate, session
-creation and ``GET /v1/info`` read per request.
+creation, sibling admission and ``GET /v1/info`` read per request.
 
 Editing a setting is only possible when the server resolves it from its file
 (the OSS default — ``create_app(sharing_mode=None, public_sharing=None)``). A
@@ -28,10 +28,12 @@ from omnigent.server.routes._auth_helpers import get_user_id
 from omnigent.server.sharing_settings import (
     DefaultPublicSessions,
     PublicSharingMaxLevel,
+    SiblingSessionDestinations,
     write_default_public_sessions_override,
     write_public_sharing_max_level_override,
     write_public_sharing_override,
     write_sharing_mode_override,
+    write_sibling_session_destinations_override,
 )
 from omnigent.stores.permission_store import PermissionStore
 
@@ -55,6 +57,7 @@ class SetSharingRequest(BaseModel):
     public_sharing: bool | None = None
     public_sharing_max_level: str | None = None
     default_public_sessions: str | None = None
+    sibling_session_destinations: str | None = None
 
 
 def _state_response(request: Request) -> dict[str, Any]:
@@ -85,6 +88,9 @@ def _state_response(request: Request) -> dict[str, Any]:
             getattr(state, "default_public_sessions_writable", False)
         ),
         "default_public_sessions_options": [p.value for p in DefaultPublicSessions],
+        "sibling_session_destinations": state.sibling_session_destinations().value,
+        "sibling_session_destinations_editable": True,
+        "sibling_session_destinations_options": [p.value for p in SiblingSessionDestinations],
     }
 
 
@@ -140,6 +146,7 @@ def create_sharing_router(
             and body.public_sharing is None
             and body.public_sharing_max_level is None
             and body.default_public_sessions is None
+            and body.sibling_session_destinations is None
         ):
             raise OmnigentError(
                 "No sharing settings to update.",
@@ -210,6 +217,20 @@ def create_sharing_router(
                     "Expected one of: " + ", ".join(p.value for p in DefaultPublicSessions) + ".",
                     code=ErrorCode.INVALID_INPUT,
                 ) from exc
+        sibling_destinations: SiblingSessionDestinations | None = None
+        if body.sibling_session_destinations is not None:
+            try:
+                sibling_destinations = SiblingSessionDestinations(
+                    body.sibling_session_destinations.strip().lower()
+                )
+            except ValueError as exc:
+                raise OmnigentError(
+                    "Unknown sibling_session_destinations "
+                    f"{body.sibling_session_destinations!r}. Expected one of: "
+                    + ", ".join(p.value for p in SiblingSessionDestinations)
+                    + ".",
+                    code=ErrorCode.INVALID_INPUT,
+                ) from exc
         # All checks passed — apply the writes.
         if mode is not None:
             await asyncio.to_thread(write_sharing_mode_override, mode)
@@ -219,6 +240,10 @@ def create_sharing_router(
             await asyncio.to_thread(write_public_sharing_max_level_override, public_max)
         if default_public is not None:
             await asyncio.to_thread(write_default_public_sessions_override, default_public)
+        if sibling_destinations is not None:
+            await asyncio.to_thread(
+                write_sibling_session_destinations_override, sibling_destinations
+            )
         return _state_response(request)
 
     return router

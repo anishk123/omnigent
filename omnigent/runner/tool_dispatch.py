@@ -3598,6 +3598,16 @@ async def _execute_session_create(
                         "no session was created."
                     }
                 )
+            if (
+                placement == "managed"
+                and info_data.get("sibling_session_destinations") == "current_host"
+            ):
+                return json.dumps(
+                    {
+                        "error": "Server policy only allows Add Agent on the current host; "
+                        "no session was created."
+                    }
+                )
         if placement == "managed":
             from omnigent.runner.session_requests import post_on_host
 

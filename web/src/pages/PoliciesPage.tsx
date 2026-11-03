@@ -15,6 +15,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { PlusIcon, RefreshCwIcon, ShieldCheckIcon, TrashIcon, XIcon } from "lucide-react";
 import { PageScroll } from "@/components/PageScroll";
 import { ModelValueCombobox } from "@/components/ModelValueCombobox";
+import { SettingsGroup } from "@/components/SettingsGroup";
 import { SettingsLabel } from "@/components/SettingsLabel";
 import { Button } from "@/components/ui/button";
 import {
@@ -27,6 +28,13 @@ import {
 } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   useDefaultPolicies,
   useAddDefaultPolicy,
   useUpdateDefaultPolicy,
@@ -34,11 +42,35 @@ import {
   type DefaultPolicy,
 } from "@/hooks/useDefaultPolicies";
 import { usePolicyRegistry, type PolicyRegistryEntry } from "@/hooks/usePolicies";
+import { useSetSharing, useSharing } from "@/hooks/useSharing";
 import { CLAUDE_NATIVE_MODELS } from "@/lib/claudeNativeModels";
 import { getCurrentIsAdmin, resolveIdentity } from "@/lib/identity";
 import { useServerInfo } from "@/lib/CapabilitiesContext";
-import { isSingleUserMode } from "@/lib/capabilities";
+import { isSingleUserMode, type SiblingSessionDestinations } from "@/lib/capabilities";
 import { coercePolicyParams } from "@/lib/policyParams";
+
+const AGENT_DESTINATIONS: {
+  id: SiblingSessionDestinations;
+  label: string;
+  description: string;
+}[] = [
+  {
+    id: "current_host",
+    label: "Current host only",
+    description: "New agents must run on the same host as the session they are added from.",
+  },
+  {
+    id: "current_host_or_new_sandbox",
+    label: "Current host or new sandbox",
+    description: "New agents can use the current host or start in a fresh managed sandbox.",
+  },
+  {
+    id: "any_host",
+    label: "Any available host",
+    description:
+      "New agents can use the current host, another connected host, or a fresh managed sandbox.",
+  },
+];
 
 // ---------------------------------------------------------------------------
 // Add-policy dialog (registry-driven, same UX as session policies)
@@ -438,12 +470,18 @@ export function PoliciesPage() {
   const [deleteCandidate, setDeleteCandidate] = useState<DefaultPolicy | null>(null);
   const [pendingAction, setPendingAction] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [destinationError, setDestinationError] = useState<string | null>(null);
+  const { data: sharing, refetch: refetchSharing } = useSharing({
+    enabled: isSingleUser || meIsAdmin === true,
+  });
+  const setSharing = useSetSharing();
 
   const registryByHandler = new Map(registry.map((r) => [r.handler, r]));
 
   const refresh = useCallback(() => {
     void refetch();
-  }, [refetch]);
+    void refetchSharing();
+  }, [refetch, refetchSharing]);
 
   // Admin probe via the mode-agnostic `/v1/me` identity (works under OIDC
   // too, unlike the accounts-only `/auth/me`). Skipped in single-user mode
@@ -496,13 +534,30 @@ export function PoliciesPage() {
     });
   }
 
+  const destinations = sharing?.sibling_session_destinations ?? "any_host";
+  const destination = AGENT_DESTINATIONS.find((option) => option.id === destinations);
+
+  function chooseDestinations(value: SiblingSessionDestinations) {
+    if (
+      value === destinations ||
+      !sharing?.sibling_session_destinations_editable ||
+      setSharing.isPending
+    )
+      return;
+    setDestinationError(null);
+    setSharing.mutate(
+      { sibling_session_destinations: value },
+      { onError: (error) => setDestinationError(error.message) },
+    );
+  }
+
   return (
     <PageScroll maxWidthClassName="max-w-4xl" contentClassName="px-4 md:px-8" extraBottom="2.5rem">
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="settings-page-title text-2xl font-medium">Global Policies</h1>
           <p className="mt-1 text-ui text-muted-foreground max-md:hidden">
-            Global policies applied to all sessions.
+            Server-wide controls for where agents run and what sessions allow.
           </p>
         </div>
         <Button onClick={() => setAddOpen(true)}>
@@ -510,8 +565,60 @@ export function PoliciesPage() {
         </Button>
       </div>
 
+      {sharing && (
+        <SettingsGroup title="Add Agent destinations" testId="settings-group-agent-destinations">
+          <div className="flex flex-col gap-3 md:flex-row-reverse md:items-start md:gap-6">
+            <Select
+              value={destinations}
+              onValueChange={(value) => chooseDestinations(value as SiblingSessionDestinations)}
+              disabled={!sharing.sibling_session_destinations_editable || setSharing.isPending}
+              componentId="settings.policies.agent_destinations"
+              valueHasNoPii
+            >
+              <SelectTrigger
+                className="w-full shrink-0 md:w-64"
+                aria-label="Add Agent destinations"
+                aria-describedby="agent-destinations-description"
+              >
+                <SelectValue>{destination?.label}</SelectValue>
+              </SelectTrigger>
+              <SelectContent
+                position="popper"
+                align="end"
+                className="w-[30rem] max-w-[calc(100vw-2rem)]"
+              >
+                {AGENT_DESTINATIONS.map((option) => (
+                  <SelectItem key={option.id} value={option.id} textValue={option.label}>
+                    <span className="flex flex-col gap-1">
+                      <span className="font-medium">{option.label}</span>
+                      <span className="text-sm leading-normal whitespace-normal text-muted-foreground">
+                        {option.description}
+                      </span>
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p
+              id="agent-destinations-description"
+              className="min-w-0 flex-1 text-sm leading-normal text-muted-foreground md:pt-1"
+            >
+              {destination?.description}
+            </p>
+          </div>
+        </SettingsGroup>
+      )}
+      {destinationError && (
+        <div
+          role="alert"
+          className="mt-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-ui text-destructive"
+        >
+          {destinationError}
+        </div>
+      )}
+
       {policies.length > 0 && (
-        <div className="flex flex-col gap-3">
+        <div className="mt-6 flex flex-col gap-3">
           {policies.map((p) => {
             const registryEntry = registryByHandler.get(p.handler);
             const params = p.factory_params;
@@ -600,7 +707,7 @@ export function PoliciesPage() {
       )}
 
       {policies.length === 0 && (
-        <p className="text-ui text-muted-foreground">
+        <p className="mt-6 text-ui text-muted-foreground">
           No global policies configured. Add one to apply it to all sessions.
         </p>
       )}

@@ -11,6 +11,7 @@ from omnigent.errors import ErrorCode, OmnigentError
 from omnigent.server.auth import LEVEL_OWNER
 from omnigent.server.schemas import SessionFamily
 from omnigent.server.session_orchestration import require_owned_session
+from omnigent.server.sharing_settings import SiblingSessionDestinations
 from omnigent.stores.conversation_store import (
     FAMILY_PIN_LABEL_PREFIX,
     PINNED_LABEL_KEY,
@@ -32,6 +33,7 @@ def authorize_sibling_source(
     *,
     parent_id: str | None,
     host_id: str | None,
+    host_type: str,
 ) -> Conversation:
     if parent_id is not None or permissions is None or user_id is None:
         raise OmnigentError(
@@ -48,6 +50,31 @@ def authorize_sibling_source(
             conversations,
             permissions,
             private=True,
+        )
+    destinations = SiblingSessionDestinations.coerce(
+        getattr(
+            request.app.state,
+            "sibling_session_destinations",
+            lambda: SiblingSessionDestinations.ANY_HOST,
+        )()
+    )
+    if host_type == "managed":
+        if destinations is SiblingSessionDestinations.CURRENT_HOST:
+            raise OmnigentError(
+                "Add Agent is limited to the current host by server policy",
+                code=ErrorCode.FORBIDDEN,
+            )
+    elif destinations is not SiblingSessionDestinations.ANY_HOST and (
+        host_id is None or host_id != source.host_id
+    ):
+        allowed = (
+            "the current host"
+            if destinations is SiblingSessionDestinations.CURRENT_HOST
+            else "the current host or a new managed sandbox"
+        )
+        raise OmnigentError(
+            f"Add Agent is limited to {allowed} by server policy",
+            code=ErrorCode.FORBIDDEN,
         )
     if host_id is not None:
         host_store = getattr(request.app.state, "host_store", None)

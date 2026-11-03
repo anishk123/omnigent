@@ -1077,6 +1077,14 @@ def test_session_metadata_managed_accepts_repo_url_workspace(workspace: str) -> 
     assert meta.workspace == workspace
 
 
+def test_session_metadata_managed_accepts_multiple_repo_workspaces() -> None:
+    from omnigent.server.schemas import SessionCreateMetadata
+
+    workspaces = ["https://github.com/org/one", "git@github.com:org/two.git#release"]
+    meta = SessionCreateMetadata(host_type="managed", workspaces=workspaces)
+    assert meta.managed_repo_workspaces() == workspaces
+
+
 def test_session_metadata_managed_accepts_sandbox_provider() -> None:
     """
     ``sandbox_provider`` is accepted with ``host_type="managed"`` (chooses

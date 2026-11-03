@@ -14,6 +14,7 @@ import { PoliciesPage } from "./PoliciesPage";
 import * as identity from "@/lib/identity";
 import * as defaultPolicies from "@/hooks/useDefaultPolicies";
 import * as policies from "@/hooks/usePolicies";
+import * as sharing from "@/hooks/useSharing";
 
 const serverInfoMocks = vi.hoisted(() => ({
   accountsEnabled: true,
@@ -34,7 +35,9 @@ vi.mock("@/lib/CapabilitiesContext", () => ({
 const addMutate = vi.fn();
 const updateMutate = vi.fn();
 const deleteMutate = vi.fn();
+const setSharingMutate = vi.fn();
 const refetchMock = vi.fn();
+const refetchSharingMock = vi.fn();
 
 vi.mock("@/lib/identity", () => ({
   resolveIdentity: vi.fn(),
@@ -47,6 +50,7 @@ vi.mock("@/hooks/useDefaultPolicies", () => ({
   useDeleteDefaultPolicy: vi.fn(),
 }));
 vi.mock("@/hooks/usePolicies", () => ({ usePolicyRegistry: vi.fn() }));
+vi.mock("@/hooks/useSharing", () => ({ useSharing: vi.fn(), useSetSharing: vi.fn() }));
 
 type Policy = ReturnType<typeof policy>;
 function policy(overrides: Partial<Record<string, unknown>> = {}) {
@@ -104,6 +108,14 @@ beforeEach(() => {
   vi.mocked(defaultPolicies.useDeleteDefaultPolicy).mockReturnValue(
     mutationStub(deleteMutate) as never,
   );
+  vi.mocked(sharing.useSharing).mockReturnValue({
+    data: {
+      sibling_session_destinations: "any_host",
+      sibling_session_destinations_editable: true,
+    },
+    refetch: refetchSharingMock,
+  } as never);
+  vi.mocked(sharing.useSetSharing).mockReturnValue(mutationStub(setSharingMutate) as never);
 });
 
 afterEach(() => {
@@ -141,8 +153,23 @@ describe("PoliciesPage list", () => {
   it("shows the empty state when no global policies are configured", async () => {
     renderPage();
     expect(await screen.findByText(/No global policies configured/)).toBeInTheDocument();
-    expect(screen.getByText("Global policies applied to all sessions.")).toHaveClass(
+    expect(screen.getByText(/Server-wide controls for where agents run/)).toHaveClass(
       "max-md:hidden",
+    );
+  });
+
+  it("updates where Add Agent may run without exposing sibling terminology", async () => {
+    renderPage();
+    const trigger = await screen.findByRole("combobox", { name: "Add Agent destinations" });
+    expect(trigger).toHaveTextContent("Any available host");
+    expect(screen.queryByText(/sibling/i)).not.toBeInTheDocument();
+
+    fireEvent.click(trigger);
+    fireEvent.click(await screen.findByRole("option", { name: /Current host or new sandbox/ }));
+
+    expect(setSharingMutate).toHaveBeenCalledWith(
+      { sibling_session_destinations: "current_host_or_new_sandbox" },
+      expect.anything(),
     );
   });
 

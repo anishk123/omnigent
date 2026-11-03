@@ -26,6 +26,11 @@ workers grouped in the left sidebar on its host or a new managed sandbox. This i
   and `managed` placements create independent, initially private sibling sessions.
   Siblings share one sidebar family and do not appear as child agents.
   Managed creation uses the server's configured default sandbox provider.
+- `destinations`: Settings → Policies → **Add Agent destinations** limits new
+  agents to the current host, the current host or a fresh managed sandbox, or
+  any available host. The server enforces the same choice for the composer,
+  uploaded custom agents, direct API calls and MCP. Any available host is the
+  behavior-preserving default.
 - `sharing`: sharing the sender with edit (or higher) access, including public
   edit, blocks subsequent sends and independent creates. Read-only grants,
   including public read and default-public sessions, do not: viewers cannot add
@@ -58,6 +63,9 @@ workers grouped in the left sidebar on its host or a new managed sandbox. This i
 - Use the existing Share dialog to share the sender or receiver, then repeat.
   A read-only share of the sender keeps both tools working; an edit share
   refuses them.
+- As an admin, open Settings → Policies and change **Add Agent destinations**.
+  Open **Add Agent** from a session and inspect its host picker, then try the
+  same disallowed destination through the API or MCP.
 - Open an independent worker in Chat or Terminal and follow its "Created by"
   link. On mobile web, the same link is in the header. Ask the manager to list
   its sessions and match `created_by_session_id` to its own session ID.
@@ -123,6 +131,9 @@ tests/server/integration/test_session_orchestration.py --reruns 0` checks the
   task and no independent worker. Read history/info to confirm reads still work.
 - Live sandbox provisioning and native terminal-entered prompts require separate
   verification; local process checks do not cover them.
+- Admin/UI component tests cover all three destination modes; server integration
+  tests cover the matching current/other/managed/unbound admission matrix, and
+  runner tests cover MCP refusal before creation.
 
 ## Gotchas
 
@@ -152,6 +163,9 @@ tests/server/integration/test_session_orchestration.py --reruns 0` checks the
   the runner; independent creation has no automatic routing fallback.
 - Independent creation uses `/v1/sessions/orchestrated`, which requires a source;
   older servers cannot silently accept the request as ordinary session creation.
+- A fresh managed sandbox is distinct from reusing an existing managed host.
+  Even the most permissive setting offers only the clicked session's existing
+  managed host; another family's managed host remains unavailable.
 - A receiver shared with edit access can continue working but cannot message
   back while shared that way. A read-only share does not stop it.
 - Privacy checks govern these tools. They do not confine arbitrary code holding

@@ -749,11 +749,16 @@ export async function createBundledSession(
   metadata: {
     host_id?: string;
     host_type?: string;
-    workspace?: string;
+    workspace?: string | null;
+    workspaces?: string[];
+    sandbox_provider?: string;
+    sandbox_profile_id?: string;
+    sandbox_profile_revision?: string;
     project_id?: string;
+    sibling_source_id?: string;
     labels?: Record<string, string>;
     terminal_launch_args?: string[];
-    git?: { branch_name: string; base_branch?: string };
+    git?: { branch_name: string; base_branch?: string; existing_worktree?: boolean } | null;
     mcp_registry_services?: string[];
   } = {},
 ): Promise<{ id: string; agentId?: string }> {

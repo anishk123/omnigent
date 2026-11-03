@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import json
 from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass, field
 from typing import Any
@@ -32,8 +33,9 @@ from omnigent.host.frames import (
 )
 from omnigent.server.auth import RESERVED_USER_LOCAL
 from omnigent.server.host_registry import HostConnection
+from omnigent.stores.conversation_store.sqlalchemy_store import SqlAlchemyConversationStore
 from omnigent.stores.host_store import HostStore
-from tests.server.helpers import create_test_agent
+from tests.server.helpers import build_agent_bundle, create_test_agent
 
 pytestmark = pytest.mark.asyncio
 
@@ -243,6 +245,41 @@ async def test_create_passes_branch_and_base_branch_to_host(
     body = resp.json()
     assert body["git_branch"] == "feature/login"
     assert body["workspace"] == f"{_SOURCE_REPO}-worktrees/feature-login"
+
+
+async def test_bundled_create_persists_server_created_worktree(
+    register_worktree_host: RegisterHost,
+    client: httpx.AsyncClient,
+    db_uri: str,
+) -> None:
+    cap = register_worktree_host()
+    response = await client.post(
+        "/v1/sessions",
+        data={
+            "metadata": json.dumps(
+                {
+                    "host_id": _HOST_ID,
+                    "workspace": _SOURCE_REPO,
+                    "git": {"branch_name": "feature/bundled", "base_branch": "main"},
+                }
+            )
+        },
+        files={
+            "bundle": (
+                "agent.tar.gz",
+                build_agent_bundle("bundled-worktree-agent"),
+                "application/gzip",
+            )
+        },
+    )
+
+    assert response.status_code == 201, response.text
+    assert len(cap.create) == 1
+    assert cap.create[0].branch_name == "feature/bundled"
+    session = SqlAlchemyConversationStore(db_uri).get_conversation(response.json()["session_id"])
+    assert session is not None
+    assert session.workspace == f"{_SOURCE_REPO}-worktrees/feature-bundled"
+    assert session.git_branch == "feature/bundled"
 
 
 async def test_create_without_base_branch_sends_none(
