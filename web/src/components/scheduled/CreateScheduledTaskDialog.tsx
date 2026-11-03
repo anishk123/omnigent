@@ -105,6 +105,7 @@ export function CreateScheduledTaskDialog({
   const { data: hosts } = useHosts({ enabled: open });
   const info = useServerInfo();
   const anchoredScheduling = isFeatureEnabled(info, "automations_v2");
+  const subhourSupported = isFeatureEnabled(info, "automations_subhour");
   // Gates the "new sandbox each run" option: only servers that can actually
   // serve a managed launch advertise it (same flag New Chat's sandbox option
   // gates on). "loading" → treat as disabled until /v1/info resolves.
@@ -476,7 +477,7 @@ export function CreateScheduledTaskDialog({
   const scheduleInvalid =
     scheduleUnsupported ||
     unsupportedByScheduler ||
-    validateSchedule(schedule, { allowPastEnd, sessionMode }) !== null;
+    validateSchedule(schedule, { allowPastEnd, sessionMode, subhourSupported }) !== null;
   const renderedTriggerPrompt =
     trigger !== null && triggerFieldsComplete(triggerFields)
       ? renderTriggerPrompt(trigger, triggerFields, {
@@ -750,6 +751,7 @@ export function CreateScheduledTaskDialog({
             model={schedule}
             anchoredScheduling={anchoredScheduling}
             sessionMode={sessionMode}
+            subhourSupported={subhourSupported}
             recurrenceUnsupported={scheduleUnsupported}
             allowPastEnd={allowPastEnd}
             onChange={setSchedule}
