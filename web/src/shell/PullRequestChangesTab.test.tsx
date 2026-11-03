@@ -363,11 +363,31 @@ describe("PullRequestChangesTab viewed files", () => {
     expect(isCollapsed("a.ts")).toBe(true);
     expect(isCollapsed("b.ts")).toBe(true);
 
+    // H2 has a saved mark on a.ts, as if another tab marked it. Loading H2 keeps a.ts
+    // collapsed, and that collapse still belongs to the mark: a fresh H3 expands it again.
+    writeViewed(viewedStorageKey(window.location.origin, "alice", IDENTITY, "head2"), ["a.ts"]);
     rerender(viewedTab({ conversationId: "viewed-collapse", head: "head2" }));
+    expect(viewedBox("a.ts")).toBeChecked();
+    expect(isCollapsed("a.ts")).toBe(true);
+    expect(isCollapsed("b.ts")).toBe(true);
 
+    rerender(viewedTab({ conversationId: "viewed-collapse", head: "head3" }));
     expect(viewedBox("a.ts")).not.toBeChecked();
     expect(isCollapsed("a.ts")).toBe(false);
     expect(isCollapsed("b.ts")).toBe(true);
+  });
+
+  it("expands a mark-collapsed file on a fresh head", () => {
+    const { rerender } = render(
+      viewedTab({ conversationId: "viewed-collapse-fresh", head: "head1" }),
+    );
+    fireEvent.click(viewedBox("a.ts"));
+    expect(isCollapsed("a.ts")).toBe(true);
+
+    rerender(viewedTab({ conversationId: "viewed-collapse-fresh", head: "head4" }));
+
+    expect(viewedBox("a.ts")).not.toBeChecked();
+    expect(isCollapsed("a.ts")).toBe(false);
   });
 
   it("keeps a file the reader collapsed before marking it collapsed on a new head", () => {

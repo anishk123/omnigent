@@ -442,8 +442,11 @@ export function PullRequestChangesTab({
   const [seededHead, setSeededHead] = useState<string | null>(null);
   if (viewedFiles.available && renderedHead !== seededHead) {
     const previousMarkCollapsed = markCollapsedRef.current;
+    // A path is the reader's own collapse unless the previous head's marks collapsed it.
     markCollapsedRef.current = new Set(
-      [...viewedFiles.viewed].filter((path) => !collapsedPaths.has(path)),
+      [...viewedFiles.viewed].filter(
+        (path) => !collapsedPaths.has(path) || previousMarkCollapsed.has(path),
+      ),
     );
     setSeededHead(renderedHead);
     setCollapsedPaths(
