@@ -3,6 +3,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  CheckIcon,
   ChevronDownIcon,
   ChevronRightIcon,
   ChevronUpIcon,
@@ -16,6 +17,7 @@ import {
   Rows2Icon,
 } from "lucide-react";
 import { parsePatchFiles, type FileDiffMetadata } from "@pierre/diffs";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { TabsContent } from "@/components/ui/tabs";
 import { useResolvedThemeMode } from "@/components/theme/useResolvedThemeMode";
@@ -33,6 +35,7 @@ import {
 } from "@/hooks/usePullRequests";
 import { readFileViewPreferences, writeFileViewPreferences } from "@/lib/fileViewPreferences";
 import { PULL_REQUEST_DIFF_THEME, type ReviewThread } from "@/lib/pullRequestReviewThreads";
+import { useViewedFiles, type PullRequestIdentity } from "@/lib/pullRequestViewed";
 import { cn } from "@/lib/utils";
 import {
   DiffStat,
@@ -42,7 +45,8 @@ import {
   type DiffOptions,
 } from "./PullRequestFileSection";
 import { PullRequestReviewThread, type ReviewThreadContext } from "./PullRequestReviewThread";
-import { selectVisibleFiles } from "./pullRequestReview";
+import { PullRequestViewedProgress, PullRequestViewedToggle } from "./PullRequestViewedControls";
+import { filterChangedPaths, selectVisibleFiles } from "./pullRequestReview";
 import { useChangesViewState } from "./useChangesViewState";
 
 /** Centered muted message filling the panel — the shared loading/transient shell. */
@@ -135,6 +139,7 @@ function SidebarNode({
   onSelectFile,
   collapsedDirs,
   onToggleDir,
+  viewedPaths,
 }: {
   node: SidebarTree;
   depth: number;
@@ -142,10 +147,12 @@ function SidebarNode({
   onSelectFile: (path: string) => void;
   collapsedDirs: ReadonlySet<string>;
   onToggleDir: (path: string) => void;
+  viewedPaths: ReadonlySet<string>;
 }) {
   if (node.type === "file") {
     const meta = STATUS_META[node.file.status];
     const StatusIcon = meta.Icon;
+    const viewed = viewedPaths.has(node.file.path);
     return (
       <button
         type="button"
@@ -157,11 +164,13 @@ function SidebarNode({
           node.file.path === activePath && "bg-muted",
         )}
       >
-        {/* Empty chevron column so the status icon lines up under a sibling
-            folder's icon. */}
-        <span className="size-3.5 shrink-0" aria-hidden />
+        {/* The chevron column shows a check for viewed files and stays
+            empty otherwise, so the status icon lines up under a folder's icon. */}
+        <span className="flex size-3.5 shrink-0 items-center justify-center" aria-hidden>
+          {viewed && <CheckIcon className="size-3 text-muted-foreground" />}
+        </span>
         <StatusIcon aria-hidden className={cn("size-3.5 shrink-0", meta.className)} />
-        <span className="min-w-0 truncate [direction:rtl]">
+        <span className={cn("min-w-0 truncate [direction:rtl]", viewed && "text-muted-foreground")}>
           <bdi>{node.name}</bdi>
         </span>
         <span className="ml-auto flex shrink-0 items-center">
@@ -204,6 +213,7 @@ function SidebarNode({
             onSelectFile={onSelectFile}
             collapsedDirs={collapsedDirs}
             onToggleDir={onToggleDir}
+            viewedPaths={viewedPaths}
           />
         ))}
     </>
@@ -361,6 +371,7 @@ export function PullRequestChangesTab({
   changes,
   prDiff,
   reviews,
+  identity,
 }: {
   conversationId: string;
   data: NormalizedPullRequestInfo;
@@ -373,6 +384,8 @@ export function PullRequestChangesTab({
   changes: ReturnType<typeof usePullRequestChangedFiles>;
   prDiff: ReturnType<typeof usePullRequestDiff>;
   reviews: ReturnType<typeof usePullRequestReviewThreads>;
+  /** The PR's server identity, for the viewed-file key; null when unknown. */
+  identity: PullRequestIdentity | null;
 }) {
   const baseRef = data.base_ref ?? undefined;
   const headSha = pr.head_sha;
@@ -380,6 +393,10 @@ export function PullRequestChangesTab({
   const mobile = useIsMobileViewport();
   const view = useChangesViewState(conversationId, data.selected_pr_url ?? pr.url);
   const { revealedPaths, reveal, clearReveal } = view;
+  // The head of the diff on screen. A polled head only counts once its list and diff render.
+  const renderedHead =
+    changes.data && prDiff.data ? (changes.data.head_sha ?? pr.head_sha ?? null) : null;
+  const viewedFiles = useViewedFiles(identity, renderedHead);
 
   const themeType = useResolvedThemeMode();
   // Diff layout is the app-global FileViewer preference (unified/split); seed
@@ -397,10 +414,15 @@ export function PullRequestChangesTab({
 
   const files = useMemo<PullRequestChangedFile[]>(() => changes.data?.data ?? [], [changes.data]);
   // One filtered list drives the tree, sections, threads and collapse all so they never disagree.
+  const hiddenPaths = view.hideViewed ? viewedFiles.viewed : NO_HIDDEN_PATHS;
   const visibleFiles = useMemo(
-    () => selectVisibleFiles(files, { pathFilter: view.pathFilter, hiddenPaths: NO_HIDDEN_PATHS }),
-    [files, view.pathFilter],
+    () => selectVisibleFiles(files, { pathFilter: view.pathFilter, hiddenPaths }),
+    [files, view.pathFilter, hiddenPaths],
   );
+  const viewedCount = files.filter((file) => viewedFiles.viewed.has(file.path)).length;
+  // Hide viewed has emptied every file the path filter still matches.
+  const matchingCount = filterChangedPaths(files, view.pathFilter).length;
+  const allViewed = view.hideViewed && visibleFiles.length === 0 && matchingCount > 0;
   // The sidebar groups the flat file list into a compacted folder tree (the
   // diff scroll below stays linear, in file order).
   const fileTree = useMemo(() => buildSidebarTree(visibleFiles), [visibleFiles]);
@@ -412,6 +434,31 @@ export function PullRequestChangesTab({
     (path: string) => collapsedPaths.has(path) && !revealedPaths.has(path),
     [collapsedPaths, revealedPaths],
   );
+  // Viewed files start collapsed once per rendered head; later expansions are kept.
+  const [seededHead, setSeededHead] = useState<string | null>(null);
+  if (viewedFiles.available && renderedHead !== seededHead) {
+    setSeededHead(renderedHead);
+    setCollapsedPaths(new Set(viewedFiles.viewed));
+  }
+  // Marking a file collapses it; unmarking leaves its current state alone.
+  const toggleViewed = useCallback(
+    (path: string) => {
+      const markViewed = !viewedFiles.viewed.has(path);
+      viewedFiles.toggle(path);
+      if (!markViewed) return;
+      clearReveal(path);
+      setCollapsedPaths((prev) => (prev.has(path) ? prev : new Set(prev).add(path)));
+    },
+    [viewedFiles, clearReveal],
+  );
+
+  // Viewed-storage failures are reported once, under a fixed toast id.
+  useEffect(() => {
+    if (!viewedFiles.persisted) {
+      toast.error("Viewed files can't be saved on this device.", { id: "pr-viewed-persistence" });
+    }
+  }, [viewedFiles.persisted]);
+
   const [sidebarCollapsed, setSidebarCollapsed] = useState(mobile);
   // Collapsed folders in the sidebar tree (empty = all expanded).
   const [collapsedDirs, setCollapsedDirs] = useState<ReadonlySet<string>>(() => new Set());
@@ -642,7 +689,10 @@ export function PullRequestChangesTab({
     );
     if (file) {
       // A thread on a filtered-out file has no mounted section, so show it first.
-      if (!visibleFiles.includes(file)) view.setPathFilter("");
+      if (!visibleFiles.includes(file)) {
+        view.setPathFilter("");
+        if (viewedFiles.viewed.has(file.path)) view.setHideViewed(false);
+      }
       jumpTo(file.path);
     }
     setFocusedThread({ id: next.id });
@@ -690,6 +740,21 @@ export function PullRequestChangesTab({
           {changes.data.warning || "The changed-file list is incomplete."}
         </p>
       )}
+      {viewedFiles.resetNotice && view.dismissedResetHead !== renderedHead && (
+        <div
+          role="status"
+          className="flex shrink-0 items-center justify-between gap-2 border-b border-border px-3 py-1 text-ui text-muted-foreground"
+        >
+          New commits since you last viewed — viewed marks were reset.
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => view.setDismissedResetHead(renderedHead)}
+          >
+            Dismiss
+          </Button>
+        </div>
+      )}
       {(files.length > 0 || unresolved.length > 0 || reviews.isFetching) && (
         <ChangesToolbar
           showFileControls={files.length > 0}
@@ -702,6 +767,19 @@ export function PullRequestChangesTab({
           onToggleDiffStyle={toggleDiffStyle}
           allCollapsed={allCollapsed}
           onToggleAll={toggleAll}
+          progress={
+            files.length > 0 ? (
+              <PullRequestViewedProgress
+                viewedCount={viewedCount}
+                totalCount={files.length}
+                partial={!!changes.data?.has_more}
+                available={viewedFiles.available}
+                mobile={mobile}
+                hideViewed={view.hideViewed}
+                onHideViewedChange={view.setHideViewed}
+              />
+            ) : undefined
+          }
         />
       )}
       <div ref={bodyRef as React.RefObject<HTMLDivElement>} className="flex min-h-0 flex-1">
@@ -735,6 +813,7 @@ export function PullRequestChangesTab({
                   onSelectFile={jumpTo}
                   collapsedDirs={collapsedDirs}
                   onToggleDir={toggleDir}
+                  viewedPaths={viewedFiles.viewed}
                 />
               ))
             )}
@@ -771,6 +850,13 @@ export function PullRequestChangesTab({
                 "No changes vs base."
               )}
             </PanelMessage>
+          ) : allViewed ? (
+            <PanelMessage>
+              <span>{`All ${matchingCount} files viewed`}</span>
+              <Button variant="outline" size="sm" onClick={() => view.setHideViewed(false)}>
+                Show viewed
+              </Button>
+            </PanelMessage>
           ) : (
             visibleFiles.map((file) => (
               <PullRequestFileSection
@@ -782,6 +868,16 @@ export function PullRequestChangesTab({
                 collapsed={collapsedPaths.has(file.path)}
                 forceExpanded={revealedPaths.has(file.path)}
                 onToggleCollapsed={() => toggleOne(file.path)}
+                headerActions={
+                  <div className="flex items-center gap-1">
+                    <PullRequestViewedToggle
+                      path={file.path}
+                      viewed={viewedFiles.viewed.has(file.path)}
+                      available={viewedFiles.available}
+                      onToggle={() => toggleViewed(file.path)}
+                    />
+                  </div>
+                }
                 threads={threadsByFile.get(file.path) ?? []}
                 threadContext={threadContext}
                 matchingRevision={matchingRevision}

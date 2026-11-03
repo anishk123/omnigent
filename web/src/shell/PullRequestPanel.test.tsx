@@ -82,6 +82,8 @@ const state = vi.hoisted(() => ({
   serveable: undefined as boolean | undefined,
 }));
 
+vi.mock("@/hooks/useViewerId", () => ({ useViewerId: () => "alice" }));
+
 vi.mock("@/hooks/usePullRequests", async (importOriginal) => {
   const original = await importOriginal<typeof UsePullRequestsModule>();
   return {
@@ -1386,6 +1388,17 @@ describe("PullRequestPanel", () => {
     expect(diffs.map((d) => d.getAttribute("data-path"))).toEqual(["hello.py", "src/app.ts"]);
     // Checks live on the Summary tab, so they're gone once Changes is active.
     expect(screen.queryByText("Checks")).toBeNull();
+  });
+
+  it("enables the viewed controls once the selected PR's identity and head are known", async () => {
+    const url = state.info!.data!.pr!.url;
+    state.info!.data!.pr!.head_sha = "head";
+    state.info!.data!.selected_pr_url = url;
+    state.info!.data!.prs = [
+      { url, host: "example.com", repository: "acme/app", number: 6000, relationship: "created" },
+    ];
+    renderChanges();
+    expect(await screen.findByRole("checkbox", { name: "Viewed hello.py" })).toBeEnabled();
   });
 
   it("stacks a diff section per changed file", async () => {
