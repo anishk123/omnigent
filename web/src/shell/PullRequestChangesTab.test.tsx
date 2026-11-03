@@ -5,7 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import type * as UsePullRequestsModule from "@/hooks/usePullRequests";
 import type { PullRequestChangedFile } from "@/hooks/usePullRequests";
 import type { ReviewThread } from "@/lib/pullRequestReviewThreads";
-import type { PullRequestIdentity } from "@/lib/pullRequestViewed";
+import { viewedStorageKey, writeViewed, type PullRequestIdentity } from "@/lib/pullRequestViewed";
 import type * as SonnerModule from "sonner";
 import { PullRequestChangesTab } from "./PullRequestChangesTab";
 import { useChangesViewState } from "./useChangesViewState";
@@ -367,6 +367,50 @@ describe("PullRequestChangesTab viewed files", () => {
 
     expect(viewedBox("a.ts")).not.toBeChecked();
     expect(isCollapsed("a.ts")).toBe(false);
+    expect(isCollapsed("b.ts")).toBe(true);
+  });
+
+  it("keeps a file the reader collapsed before marking it collapsed on a new head", () => {
+    const { rerender } = render(
+      viewedTab({ conversationId: "viewed-manual-first", head: "head1" }),
+    );
+    fireEvent.click(fileSection("a.ts").querySelector("button")!);
+    fireEvent.click(viewedBox("a.ts"));
+    expect(isCollapsed("a.ts")).toBe(true);
+
+    rerender(viewedTab({ conversationId: "viewed-manual-first", head: "head2" }));
+
+    expect(viewedBox("a.ts")).not.toBeChecked();
+    expect(isCollapsed("a.ts")).toBe(true);
+  });
+
+  it("keeps a file collapsed on a new head after the reader expands and recollapses it", () => {
+    const { rerender } = render(
+      viewedTab({ conversationId: "viewed-manual-again", head: "head1" }),
+    );
+    fireEvent.click(viewedBox("a.ts"));
+    fireEvent.click(fileSection("a.ts").querySelector("button")!);
+    fireEvent.click(fileSection("a.ts").querySelector("button")!);
+    expect(isCollapsed("a.ts")).toBe(true);
+
+    rerender(viewedTab({ conversationId: "viewed-manual-again", head: "head2" }));
+
+    expect(isCollapsed("a.ts")).toBe(true);
+  });
+
+  it("keeps a manual collapse made before identity loads when viewed files seed later", () => {
+    const origin = window.location.origin;
+    writeViewed(viewedStorageKey(origin, "alice", IDENTITY, "head1"), ["a.ts"]);
+    const { rerender } = render(
+      viewedTab({ conversationId: "viewed-late-identity", identity: null }),
+    );
+    fireEvent.click(fileSection("b.ts").querySelector("button")!);
+    expect(isCollapsed("b.ts")).toBe(true);
+    expect(isCollapsed("a.ts")).toBe(false);
+
+    rerender(viewedTab({ conversationId: "viewed-late-identity" }));
+
+    expect(isCollapsed("a.ts")).toBe(true);
     expect(isCollapsed("b.ts")).toBe(true);
   });
 });

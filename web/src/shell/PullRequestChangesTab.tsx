@@ -436,13 +436,15 @@ export function PullRequestChangesTab({
     (path: string) => collapsedPaths.has(path) && !revealedPaths.has(path),
     [collapsedPaths, revealedPaths],
   );
-  // Viewed files start collapsed once per rendered head. Paths collapsed by marks on the
-  // previous head expand again on a new head, since their marks were reset; manual collapses stay.
+  // Viewed files start collapsed once per rendered head. A collapse that marks introduced
+  // expands again on a new head, since its mark was reset; the reader's own collapses stay.
   const markCollapsedRef = useRef<ReadonlySet<string>>(new Set());
   const [seededHead, setSeededHead] = useState<string | null>(null);
   if (viewedFiles.available && renderedHead !== seededHead) {
     const previousMarkCollapsed = markCollapsedRef.current;
-    markCollapsedRef.current = new Set(viewedFiles.viewed);
+    markCollapsedRef.current = new Set(
+      [...viewedFiles.viewed].filter((path) => !collapsedPaths.has(path)),
+    );
     setSeededHead(renderedHead);
     setCollapsedPaths(
       (prev) =>
@@ -453,17 +455,25 @@ export function PullRequestChangesTab({
         ),
     );
   }
+  // A manual toggle hands the file's collapse to the reader.
+  const releaseMarkCollapse = useCallback((paths: Iterable<string>) => {
+    const next = new Set(markCollapsedRef.current);
+    for (const path of paths) next.delete(path);
+    markCollapsedRef.current = next;
+  }, []);
   // Marking a file collapses it; unmarking leaves its current state alone.
   const toggleViewed = useCallback(
     (path: string) => {
       const markViewed = !viewedFiles.viewed.has(path);
       viewedFiles.toggle(path);
       if (!markViewed) return;
-      markCollapsedRef.current = new Set(markCollapsedRef.current).add(path);
+      if (!collapsedPaths.has(path)) {
+        markCollapsedRef.current = new Set(markCollapsedRef.current).add(path);
+      }
       clearReveal(path);
       setCollapsedPaths((prev) => (prev.has(path) ? prev : new Set(prev).add(path)));
     },
-    [viewedFiles, clearReveal],
+    [viewedFiles, clearReveal, collapsedPaths],
   );
 
   // Fixed id keeps repeated failures from stacking toasts.
@@ -497,6 +507,7 @@ export function PullRequestChangesTab({
     (path: string) => {
       const collapse = !isCollapsed(path);
       clearReveal(path);
+      releaseMarkCollapse([path]);
       setCollapsedPaths((prev) => {
         if (prev.has(path) === collapse) return prev;
         const next = new Set(prev);
@@ -505,12 +516,13 @@ export function PullRequestChangesTab({
         return next;
       });
     },
-    [isCollapsed, clearReveal],
+    [isCollapsed, clearReveal, releaseMarkCollapse],
   );
 
   const allCollapsed = visibleFiles.length > 0 && visibleFiles.every((f) => isCollapsed(f.path));
   const toggleAll = useCallback(() => {
     for (const file of visibleFiles) clearReveal(file.path);
+    releaseMarkCollapse(visibleFiles.map((file) => file.path));
     setCollapsedPaths((prev) => {
       const next = new Set(prev);
       for (const file of visibleFiles) {
@@ -519,7 +531,7 @@ export function PullRequestChangesTab({
       }
       return next;
     });
-  }, [visibleFiles, allCollapsed, clearReveal]);
+  }, [visibleFiles, allCollapsed, clearReveal, releaseMarkCollapse]);
 
   // Parse the one whole-PR patch into per-file diffs, keyed by path.
   const { filesByPath, parseError } = useMemo(() => {
