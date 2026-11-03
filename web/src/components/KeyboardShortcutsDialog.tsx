@@ -164,6 +164,7 @@ function shortcutGroupsFor(
   contentSearch: boolean,
   grids: boolean,
   splitTerminal: boolean,
+  siblingSessions: boolean,
 ): ShortcutGroup[] {
   const groups = SHORTCUT_GROUPS.map((group) => {
     if (group.title === "General") {
@@ -171,6 +172,9 @@ function shortcutGroupsFor(
         ...group,
         items: [
           { label: "Start a new session", keys: newSessionShortcutKeys(native) },
+          ...(siblingSessions
+            ? [{ label: "Add an agent to this session", keys: [MOD_KEY, ALT_KEY, "A"] }]
+            : []),
           ...group.items,
         ],
       };
@@ -263,6 +267,7 @@ export function KeyboardShortcutsList({
     !isMobileViewport && isFeatureEnabled(serverInfo, "workspace_content_search"),
     !isMobileViewport && isFeatureEnabled(serverInfo, "grid_sessions_display_ui"),
     !isMobileViewport && isFeatureEnabled(serverInfo, "splittable_terminal_view_ui"),
+    serverInfo !== "loading" && serverInfo.sibling_sessions === true,
   );
   const settings = variant === "settings";
   return (
